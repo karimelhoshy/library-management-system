@@ -34,17 +34,26 @@ export async function scanShelfAction(base64: string, mimeType: string): Promise
   });
 }
 
+// Drafts come back from the browser, so check them up front with the same limits as the
+// book form (createBook re-validates with bookInputSchema before anything is saved).
 const draftSchema = z.object({
   title: z.string().trim().min(1).max(300),
   authors: z.array(z.string().trim().min(1).max(120)).max(10),
-  isbn: z.string().nullable(),
-  coverUrl: z.string().nullable(),
-  description: z.string().nullable(),
-  genres: z.array(z.string()).max(20),
-  publisher: z.string().nullable(),
-  year: z.number().int().nullable(),
-  pages: z.number().int().nullable(),
-  language: z.string(),
+  isbn: z
+    .string()
+    .regex(/^[0-9Xx-]{10,17}$/)
+    .nullable(),
+  coverUrl: z
+    .string()
+    .max(500)
+    .regex(/^https:\/\/\S+$/, "Cover must be an https URL")
+    .nullable(),
+  description: z.string().max(5000).nullable(),
+  genres: z.array(z.string().trim().min(1).max(60)).max(20),
+  publisher: z.string().max(200).nullable(),
+  year: z.number().int().min(0).max(3000).nullable(),
+  pages: z.number().int().min(1).max(20000).nullable(),
+  language: z.string().trim().min(1).max(60),
 });
 
 const itemsSchema = z
