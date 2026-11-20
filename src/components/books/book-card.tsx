@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { BookCard as BookCardData } from "@/server/services/catalog";
+import { cardStatus } from "@/server/services/rules";
 import { AvailabilityText } from "./availability";
 import { BookCover } from "./book-cover";
-import { cardStatus } from "./card-status";
 
 export function BookCard({ book, priority = false }: { book: BookCardData; priority?: boolean }) {
   const status = cardStatus(book);

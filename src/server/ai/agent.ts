@@ -4,14 +4,15 @@
  * that the member confirms in the UI (see resolveProposalAction).
  */
 import { ApiError, ThinkingLevel, type Content, type FunctionCall, type GenerateContentConfig, type Part } from "@google/genai";
-import type { ChatStreamEvent, MiniBook } from "@/components/chat/types";
+import type { ChatStreamEvent, MiniBook } from "@/lib/chat-types";
 import { APP_NAME, HOLD_READY_DAYS, LOAN_DAYS } from "@/lib/config";
 import type { SessionUser } from "@/server/auth/session";
 import type { AiMessageContent, AiProposal } from "@/server/db/schema";
 import { geminiModel } from "@/server/env";
 import type { BookCard } from "@/server/services/catalog";
+import { toMiniBook } from "@/server/services/chat";
 import { AiUnavailableError, friendlyAiError, getGenAI } from "./client";
-import { runTool, TOOL_DECLARATIONS, toMiniBook, toolStatus, type ToolContext } from "./tools";
+import { runTool, TOOL_DECLARATIONS, toolStatus, type ToolContext } from "./tools";
 
 const MAX_STEPS = 5;
 

@@ -1,13 +1,12 @@
 import { and, desc, eq } from "drizzle-orm";
-import type { ChatMessage } from "@/components/chat/types";
-import { toMiniBook } from "@/server/ai/tools";
+import type { ChatMessage, MiniBook } from "@/lib/chat-types";
 import { DomainError, type Actor } from "@/server/auth/permissions";
 import { db } from "@/server/db";
 import { aiMessages, type AiMessageContent, type AiProposal } from "@/server/db/schema";
-import { getBookCards } from "./catalog";
+import { getBookCards, type BookCard } from "./catalog";
 import { placeHold } from "./holds";
 import { borrowBook, renewLoan } from "./loans";
-import { formatShortDate } from "./rules";
+import { cardStatus, formatShortDate } from "./rules";
 
 export async function latestThreadId(userId: string): Promise<string | null> {
   const [row] = await db
@@ -37,6 +36,22 @@ export async function saveMessage(
 ): Promise<string> {
   const [row] = await db.insert(aiMessages).values({ userId, threadId, role, content }).returning({ id: aiMessages.id });
   return row!.id;
+}
+
+/** A book as a small card in the chat. */
+export function toMiniBook(book: BookCard): MiniBook {
+  const status = cardStatus(book);
+  const allOut = book.available === 0 && !book.myLoanDueAt && !book.myHoldStatus;
+  return {
+    id: book.id,
+    title: book.title,
+    authors: book.authors,
+    coverUrl: book.coverUrl,
+    statusText: allOut
+      ? `0 of ${book.totalCopies} available${book.nextDueAt ? ` · back ${formatShortDate(book.nextDueAt)}` : ""}`
+      : status.text,
+    tone: status.tone,
+  };
 }
 
 /** Stored messages → chat UI messages, with book cards refreshed to current availability. */

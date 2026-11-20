@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ChatProposal } from "@/components/chat/types";
+import type { ChatProposal } from "@/lib/chat-types";
 import { resolveProposal } from "@/server/services/chat";
 import { withUser, type ActionResult } from "./result";
 

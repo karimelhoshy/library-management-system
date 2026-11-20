@@ -11,8 +11,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { ChatMessage, ChatProposal, ChatThreadResponse } from "@/lib/chat-types";
 import { resolveProposalAction } from "@/server/actions/ai";
-import type { ChatMessage, ChatProposal, ChatStreamEvent, ChatThreadResponse } from "./types";
+import { applyStreamEvent, streamChat } from "./stream";
 
 const COLUMN_KEY = "shelfwise:chat-column";
 const WIDE_QUERY = "(min-width: 1280px)";
@@ -145,53 +146,11 @@ export function ChatProvider({ aiEnabled, children }: { aiEnabled: boolean; chil
         setMessages((current) => current.map((m) => (m.id === assistantId ? fn(m) : m)));
 
       try {
-        const response = await fetch("/api/ai/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ threadId, message: text }),
-        });
-        if (!response.ok || !response.body) {
-          const body = (await response.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(body?.error ?? "The librarian couldn't answer just now. Please try again.");
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
         let finalId = assistantId;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const event = JSON.parse(line) as ChatStreamEvent;
-            switch (event.type) {
-              case "thread":
-                setThreadId(event.threadId);
-                break;
-              case "status":
-                update((m) => ({ ...m, status: event.text }));
-                break;
-              case "text":
-                update((m) => ({ ...m, text: m.text + event.delta, status: undefined }));
-                break;
-              case "books":
-                update((m) => ({ ...m, books: event.books }));
-                break;
-              case "proposal":
-                update((m) => ({ ...m, proposals: [...(m.proposals ?? []), event.proposal] }));
-                break;
-              case "error":
-                update((m) => ({ ...m, text: m.text || event.message, error: true }));
-                break;
-              case "done":
-                finalId = event.messageId;
-                break;
-            }
-          }
+        for await (const event of streamChat(threadId, text)) {
+          if (event.type === "thread") setThreadId(event.threadId);
+          else if (event.type === "done") finalId = event.messageId;
+          else update((m) => applyStreamEvent(m, event));
         }
         setMessages((current) =>
           current.map((m) => (m.id === assistantId ? { ...m, id: finalId, pending: false, status: undefined } : m)),

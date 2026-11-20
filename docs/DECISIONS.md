@@ -37,3 +37,5 @@ One line each: what we chose and why.
 - **Cron runs at 06:00 UTC daily** (Hobby plan allows one run per day) and compares the bearer token in constant time.
 - **`vercel.json` (not `vercel.ts`) for the cron** to avoid an extra dependency for one setting.
 - **Email previews render in a sandboxed `<iframe srcdoc>`** so stored HTML can't run scripts.
+- **Layer boundaries are lint rules, not just convention** (`@typescript-eslint/no-restricted-imports`), so the structure holds once outside contributors arrive.
+- **Chat stream types live in `src/lib`** because the server writes them and the browser reads them; neither side should own them.

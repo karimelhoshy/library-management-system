@@ -1,177 +1,25 @@
 "use client";
 
-import { ArrowUp, Loader2, MessageSquare, PanelRightClose, Plus, Sparkles } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { MessageSquare, PanelRightClose, Plus, Sparkles } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { cn } from "cn";
-import { AvailabilityText } from "@/components/books/availability";
-import { BookCover } from "@/components/books/book-cover";
 import { Button } from "@/components/ui/button";
+import { ChatComposer } from "./chat-composer";
 import { useChat } from "./chat-provider";
-import { RichText } from "./rich-text";
-import type { ChatMessage, ChatProposal, MiniBook } from "./types";
-
-const SUGGESTIONS = ["What's due soon?", "Something like Piranesi", "Renew my loans", "Something short and funny I can borrow today"];
+import { AssistantAvatar, MessageView } from "./message-view";
 
 const timeFormat = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 
 function dayLabel(date: Date) {
   const today = new Date();
-  const sameDay = date.toDateString() === today.toDateString();
-  const day = sameDay
-    ? "Today"
-    : date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const day =
+    date.toDateString() === today.toDateString()
+      ? "Today"
+      : date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   return `${day}, ${timeFormat.format(date)}`;
 }
 
-function MiniBookCard({ book, children }: { book: MiniBook; children?: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-3">
-      <Link
-        href={`/books/${book.id}`}
-        className="flex items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        <BookCover title={book.title} coverUrl={book.coverUrl} size="sm" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold text-foreground hover:text-accent-foreground">
-            {book.title}
-          </span>
-          <span className="block truncate text-[13px] text-ink-2">{book.authors.join(", ")}</span>
-          <AvailabilityText tone={book.tone} className="mt-1 text-xs">
-            {book.statusText}
-          </AvailabilityText>
-        </span>
-      </Link>
-      {children}
-    </div>
-  );
-}
-
-const PROPOSAL_LABEL: Record<ChatProposal["kind"], string> = {
-  place_hold: "Place hold",
-  borrow_book: "Borrow",
-  renew_loan: "Renew",
-};
-
-function ProposalCard({
-  messageId,
-  proposal,
-  book,
-}: {
-  messageId: string;
-  proposal: ChatProposal;
-  book?: MiniBook;
-}) {
-  const { resolveProposal } = useChat();
-  const [pending, startTransition] = useTransition();
-  const [choice, setChoice] = useState<"confirm" | "dismiss" | null>(null);
-  const decide = (decision: "confirm" | "dismiss") => {
-    setChoice(decision);
-    startTransition(() => resolveProposal(messageId, proposal.id, decision));
-  };
-
-  const body = (
-    <div className="mt-3">
-      <p className="text-sm text-ink-2">{proposal.detail}</p>
-      {proposal.status === "pending" ? (
-        <div className="mt-3 flex gap-2">
-          <Button className="flex-1" onClick={() => decide("confirm")} disabled={pending}>
-            {pending && choice === "confirm" && <Loader2 className="animate-spin" />}
-            {PROPOSAL_LABEL[proposal.kind]}
-          </Button>
-          <Button variant="outline" onClick={() => decide("dismiss")} disabled={pending}>
-            Not now
-          </Button>
-        </div>
-      ) : (
-        <p
-          role="status"
-          className={cn(
-            "mt-3 rounded-xl px-3 py-2 text-sm font-semibold",
-            proposal.status === "confirmed" && "bg-success-bg text-success",
-            proposal.status === "dismissed" && "bg-muted text-ink-2",
-            proposal.status === "failed" && "bg-destructive-bg text-destructive",
-          )}
-        >
-          {proposal.resultMessage ??
-            (proposal.status === "dismissed" ? "No problem, I left it." : "Done.")}
-        </p>
-      )}
-    </div>
-  );
-
-  if (book) return <MiniBookCard book={book}>{body}</MiniBookCard>;
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-3">
-      <p className="text-[15px] font-bold">{proposal.title}</p>
-      {body}
-    </div>
-  );
-}
-
-function AssistantAvatar() {
-  return (
-    <span aria-hidden className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-accent text-primary">
-      <Sparkles className="size-3.5" />
-    </span>
-  );
-}
-
-function MessageView({ message }: { message: ChatMessage }) {
-  if (message.role === "user") {
-    return (
-      <div className="flex justify-end">
-        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap text-white">
-          {message.text}
-        </p>
-      </div>
-    );
-  }
-  const proposalBookIds = new Set(message.proposals?.map((p) => p.bookId));
-  const books = message.books?.filter((b) => !proposalBookIds.has(b.id)) ?? [];
-  return (
-    <div className="flex gap-2.5">
-      <AssistantAvatar />
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {(message.text || message.status) && (
-          <div
-            className={cn(
-              "rounded-2xl rounded-tl-md border border-border bg-surface px-4 py-3 text-[15px] leading-relaxed text-foreground",
-              message.error && "border-destructive/30 bg-destructive-bg text-destructive",
-            )}
-          >
-            {message.text ? (
-              <RichText text={message.text} />
-            ) : (
-              <span className="inline-flex items-center gap-2 text-ink-3">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                {message.status}
-              </span>
-            )}
-            {message.text && message.status && (
-              <span className="mt-2 flex items-center gap-2 text-xs text-ink-3">
-                <Loader2 className="size-3 animate-spin" aria-hidden />
-                {message.status}
-              </span>
-            )}
-          </div>
-        )}
-        {books.map((book) => (
-          <MiniBookCard key={book.id} book={book} />
-        ))}
-        {message.proposals?.map((proposal) => (
-          <ProposalCard
-            key={proposal.id}
-            messageId={message.id}
-            proposal={proposal}
-            book={message.books?.find((b) => b.id === proposal.bookId)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
+/** Ask the Librarian: the right-hand column on desktop, and the full /ask page on phones. */
 export function ChatPanel({
   variant,
   userName,
@@ -180,8 +28,7 @@ export function ChatPanel({
   userName: string | null;
 }) {
   const chat = useChat();
-  const { ensureLoaded, registerComposer } = chat;
-  const [draft, setDraft] = useState("");
+  const { ensureLoaded } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastMessage = chat.messages.at(-1);
 
@@ -189,16 +36,11 @@ export function ChatPanel({
     ensureLoaded();
   }, [ensureLoaded]);
 
+  // Follow the conversation as replies stream in.
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [chat.messages.length, lastMessage?.text, lastMessage?.proposals?.length, lastMessage?.books?.length]);
-
-  const submit = (text: string) => {
-    if (!text.trim() || chat.sending) return;
-    setDraft("");
-    void chat.send(text);
-  };
 
   const firstName = userName?.split(" ")[0];
   const firstAt = chat.messages[0]?.createdAt;
@@ -268,60 +110,7 @@ export function ChatPanel({
         )}
       </div>
 
-      <footer className="border-t border-border bg-surface px-4 pt-3 pb-4">
-        {chat.aiEnabled && (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {SUGGESTIONS.slice(0, chat.messages.length ? 3 : 4).map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => submit(suggestion)}
-                disabled={chat.sending}
-                className="min-h-9 rounded-full border border-accent-border/60 bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-accent-foreground transition-colors hover:bg-accent-border/60 disabled:opacity-50"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        )}
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit(draft);
-          }}
-          className="flex items-end gap-2 rounded-2xl border-2 border-primary/70 bg-surface p-2 pl-3.5 shadow-[0_0_0_4px_rgba(79,70,229,0.08)] focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(79,70,229,0.15)]"
-        >
-          <label htmlFor={`chat-input-${variant}`} className="sr-only">
-            Message the Librarian
-          </label>
-          <textarea
-            id={`chat-input-${variant}`}
-            ref={variant === "column" || variant === "page" ? registerComposer : undefined}
-            rows={2}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                submit(draft);
-              }
-            }}
-            disabled={!chat.aiEnabled}
-            placeholder={chat.aiEnabled ? "Message the Librarian…" : "AI is turned off"}
-            maxLength={1000}
-            className="min-h-12 flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-relaxed text-foreground outline-none placeholder:text-ink-3 focus-visible:outline-none disabled:cursor-not-allowed"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!chat.aiEnabled || chat.sending || !draft.trim()}
-            aria-label="Send message"
-            className="rounded-xl"
-          >
-            {chat.sending ? <Loader2 className="animate-spin" /> : <ArrowUp className="size-5" />}
-          </Button>
-        </form>
-      </footer>
+      <ChatComposer inputId={`chat-input-${variant}`} />
     </section>
   );
 }

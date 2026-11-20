@@ -64,19 +64,22 @@ Next.js 16 (App Router, server components, server actions), TypeScript strict, T
 ```
 src/
   app/                 routes: catalog, books/[id], loans, ask, admin/*, api/ai/chat, api/cron
-  components/          ui (shadcn) + feature components
+  components/          ui (shadcn) + feature components, one folder per feature
   server/
     db/                Drizzle schema, migrations, idempotent seed
-    services/          books, catalog, loans, holds, users, notifications ← all business rules
-    ai/                agent.ts (tool loop + streaming), tools.ts (tools → services + can()),
-                       vision.ts (shelf photo), embed.ts, rate-limit.ts
+    services/          books, catalog, loans, holds, users, notifications, daily-jobs ← all business rules
+    ai/                agent.ts (tool loop + streaming), tools/ (lookups, and write tools that
+                       only propose), vision.ts (shelf photo), embed.ts, rate-limit.ts
     auth/              Auth.js config, can() matrix, demo provider, demo scoping
     email/             templates, Nodemailer transport, outbox writer
     actions/           thin server actions over the services
-  lib/                 zod schemas, ISBN helpers, Open Library client
+  lib/                 code shared by browser and server: zod schemas, ISBN helpers,
+                       Open Library client, chat stream types
 ```
 
-Server actions and AI tools call the **same services**, so a rule like "renew once, only if nobody is waiting" lives in one place (`services/rules.ts`) and the AI can't do anything the UI couldn't. Gemini, Open Library and SMTP are only called from the server.
+Server actions and AI tools call the **same services**, so a rule like "renew once, only if nobody is waiting" lives in one place (`services/rules.ts`) and the AI can't do anything the UI couldn't. Gemini, Open Library and SMTP are only called from the server, and each lives in one folder (`server/ai`, `lib/open-library.ts`, `server/email`), so swapping one touches only that folder.
+
+Lint enforces the boundaries (`eslint.config.mjs`): pages and components can't query the database, server code can't import UI, services can't import Next.js, and `lib/` depends on nothing else in the app.
 
 ## Run it locally
 

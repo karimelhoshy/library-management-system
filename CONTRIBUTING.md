@@ -33,7 +33,7 @@ TEST_DATABASE_URL=postgres://shelfwise:shelfwise@localhost:54329/shelfwise_test 
 
 ## Conventions
 
-- **Rules live in services.** Server actions (`src/server/actions`) and AI tools (`src/server/ai/tools.ts`) are thin and call the same service functions. Pure rules (availability, renewals, hold promotion) go in `services/rules.ts` with unit tests.
+- **Rules live in services.** Server actions (`src/server/actions`) and AI tools (`src/server/ai/tools/`) are thin and call the same service functions. Pure rules (availability, renewals, hold promotion) go in `services/rules.ts` with unit tests.
 - **Every write checks permissions** with `assertCan()` / `assertCanActFor()` and logs to the activity log inside its transaction.
 - **Changes to a book's copies happen under `lockBook()`** so availability can't race.
 - **Optional integrations degrade.** Anything that needs an env var (AI, email, Google) must work, or show a friendly "off" state, without it.

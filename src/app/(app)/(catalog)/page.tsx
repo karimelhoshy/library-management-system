@@ -1,7 +1,8 @@
 import { SearchX, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { BookCard } from "@/components/books/book-card";
-import { CatalogView, SortMenu } from "@/components/catalog/catalog-view";
+import { CatalogView } from "@/components/catalog/catalog-view";
+import { SortMenu } from "@/components/catalog/sort-menu";
 import { ReadyHoldNotice } from "@/components/loans/ready-hold-notice";
 import { Button } from "@/components/ui/button";
 import { parseCatalogQuery } from "@/lib/validation";

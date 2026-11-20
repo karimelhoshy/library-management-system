@@ -113,3 +113,19 @@ const shortDate = new Intl.DateTimeFormat("en-US", {
 export function formatShortDate(date: Date): string {
   return shortDate.format(date);
 }
+
+export type CardStatus = { tone: AvailabilityTone | "ready" | "mine"; text: string };
+
+/** Card status from the viewer's point of view first, then general availability. */
+export function cardStatus(book: {
+  available: number;
+  totalCopies: number;
+  nextDueAt: Date | null;
+  myLoanDueAt: Date | null;
+  myHoldStatus: "waiting" | "ready" | null;
+}): CardStatus {
+  if (book.myLoanDueAt) return { tone: "mine", text: `On loan to you · due ${formatShortDate(book.myLoanDueAt)}` };
+  if (book.myHoldStatus === "ready") return { tone: "ready", text: "Ready for you to pick up" };
+  if (book.myHoldStatus === "waiting") return { tone: "onloan", text: "You're in the queue" };
+  return availabilityLabel(book);
+}

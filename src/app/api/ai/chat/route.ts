@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { ChatStreamEvent } from "@/components/chat/types";
+import type { ChatStreamEvent } from "@/lib/chat-types";
 import { runLibrarian } from "@/server/ai/agent";
 import { consumeAiQuota } from "@/server/ai/rate-limit";
 import { can, DomainError } from "@/server/auth/permissions";
