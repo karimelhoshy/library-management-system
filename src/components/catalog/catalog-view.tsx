@@ -104,7 +104,7 @@ export function CatalogView({
       disabled={!aiEnabled}
       onClick={() => apply({ vibe: vibe ? null : "1", sort: null })}
       className={cn(
-        "inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-[14px] px-5 text-base font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:px-6",
+        "inline-flex h-14 w-full shrink-0 items-center justify-center gap-2 rounded-[14px] px-5 text-base font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-6",
         vibe
           ? "bg-primary text-white hover:bg-primary-hover"
           : "border border-accent-border bg-accent text-accent-foreground hover:bg-accent-border/60",
@@ -178,7 +178,7 @@ export function CatalogView({
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span tabIndex={0} className="inline-flex rounded-[14px]">
+                <span tabIndex={0} className="inline-flex w-full rounded-[14px] sm:w-auto">
                   {vibeButton}
                 </span>
               </TooltipTrigger>
@@ -187,7 +187,11 @@ export function CatalogView({
           )}
         </form>
 
-        <div className="mt-4 flex flex-wrap gap-2.5" role="group" aria-label="Filters">
+        <div
+          className="-mx-5 mt-4 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden"
+          role="group"
+          aria-label="Filters"
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Chip active>

@@ -23,3 +23,7 @@ Check: an integration test drives the agent loop with a scripted model (search �
 ## Phase 6 · Notifications — done
 Branded email templates, Nodemailer/Gmail transport, outbox writer with dedupe keys, daily `/api/cron/reminders` (CRON_SECRET, demo reset, hold expiry, due-soon/overdue reminders), Outbox page with sandboxed previews, in-app ready-hold notices, `vercel.json` cron at 06:00 UTC.
 Check: cron returns 401 without the secret; with it the demo resets and the outbox repopulates; a second run sends nothing new.
+
+## Phase 7 · Polish and ship — in progress
+Done: full-screen /ask page, mobile pass (scrolling filter chips, full-width vibe button, tab bar), favicon, Open Graph image, README, CONTRIBUTING, Playwright screenshot script, production build passes.
+Waiting on: Vercel login + production secrets (Neon, Gemini, Google OAuth, Gmail) to deploy, run migrations/seed, re-take AI screenshots and run the smoke test against the live URL.
