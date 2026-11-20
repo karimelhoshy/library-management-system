@@ -1,0 +1,15 @@
+# Local Postgres with pgvector for development: docker compose up -d
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: shelfwise
+      POSTGRES_PASSWORD: shelfwise
+      POSTGRES_DB: shelfwise
+    ports:
+      - "54329:5432"
+    volumes:
+      - shelfwise-db:/var/lib/postgresql/data
+
+volumes:
+  shelfwise-db:

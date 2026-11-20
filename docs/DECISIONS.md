@@ -1,0 +1,27 @@
+# Decisions
+
+One line each: what we chose and why.
+
+- **Next.js 16.4 with Cache Components off.** Almost every page depends on the signed-in user, so plain dynamic rendering is simpler and just as fast; `cacheComponents` and `partialPrefetching` are disabled.
+- **`experimental.authInterrupts` on.** Lets pages call `forbidden()` and render a real 403 page.
+- **Postgres driver: `pg` (node-postgres) + Drizzle 0.45.** Works the same against Neon, Docker and any self-hosted Postgres; pool attached to Vercel Fluid via `attachDatabasePool`.
+- **Correlated subqueries use raw aliases.** Drizzle drops table names in single-table selects, so subqueries use `loans l … where l.book_id = "books"."id"` to stay unambiguous.
+- **Auth.js v5 with JWT sessions.** The credentials-style demo provider requires JWT; the role is re-read from the database on every request, so role changes apply at once.
+- **Demo sign-in only accepts the four fixed demo ids** (`demo-ada`, `demo-leo`, `demo-maya`, `demo-sam`) and only when `DEMO_MODE=true`.
+- **Availability = total − open loans − ready holds.** A "ready" hold sets a copy aside for one member, so it can't be borrowed by anyone else.
+- **Every borrow/return/hold locks the book row (`SELECT … FOR UPDATE`).** Serialises changes per title so the last copy can't be double-booked; a partial unique index is the backstop.
+- **One open loan and one active hold per member per title** (partial unique indexes).
+- **Renewal of an overdue loan gives 14 days from today**, not from the old due date.
+- **Members can borrow while overdue.** Fines and blocks are non-goals; the overdue badge and emails nudge instead.
+- **Undo window is 2 minutes.** Undo borrow deletes the loan; undo return reopens it only if the copy hasn't gone to someone waiting.
+- **Books table has an extra `summary` column** (one-line hook for cards) and `embedding_hash` (re-embed only when the text changes).
+- **In-app hold notices are derived from hold status** (no separate notifications table).
+- **Email outbox has `dedupe_key`** so the daily job never sends the same reminder twice; overdue reminders repeat weekly.
+- **`ai_usage` table** backs the per-user AI rate limit (works across serverless instances, unlike memory).
+- **Dates display in UTC** so server and client render identical text (no hydration mismatches).
+- **Chat model `gemini-3.8-flash`, embeddings `gemini-embedding-001` @ 768 dims, normalised.** Current free-tier models per Google's docs (Nov 2026); both overridable via env.
+- **Covers use plain `<img>` with a coloured fallback**, not `next/image`, to avoid image-optimisation quotas and handle missing covers cleanly.
+- **Seed is deterministic** (seeded PRNG + hashed UUIDs), so `pnpm db:seed` is idempotent and every machine gets the same history.
+- **Seed swap:** *Murder in the Crooked House* has no cover on Open Library, so *The Moai Island Puzzle* (another translated Japanese locked-room mystery) stands in.
+- **Local dev DB: Docker `pgvector/pgvector:pg17` on port 54329** (`docker compose up -d`).
+- **pnpm 12 + Node 24.** `pnpm-workspace.yaml` allow-lists build scripts (only esbuild needs one).
