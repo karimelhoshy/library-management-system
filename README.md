@@ -96,6 +96,8 @@ pnpm dev                             # http://localhost:3000
 
 Set `DEMO_MODE=true` to get the demo accounts. Other scripts: `pnpm lint`, `pnpm typecheck`, `pnpm test` (add `TEST_DATABASE_URL` to also run the Postgres integration tests), `pnpm test:e2e`, `pnpm db:reset`, `pnpm db:embed`.
 
+`pnpm video` records a captioned walkthrough of a running instance to `recordings/` (needs ffmpeg; `BASE_URL` points it at the live demo, `HEADED=1` lets you watch while you narrate). `pnpm screenshots` refreshes the README images.
+
 ## Self-hosting
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkarimelhoshy%2Flibrary-management-system&env=DATABASE_URL,AUTH_SECRET&envDescription=Postgres%20URL%20(with%20pgvector)%20and%20a%20random%20session%20secret&envLink=https%3A%2F%2Fgithub.com%2Fkarimelhoshy%2Flibrary-management-system%2Fblob%2Fmain%2F.env.example)

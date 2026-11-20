@@ -25,5 +25,5 @@ Branded email templates, Nodemailer/Gmail transport, outbox writer with dedupe k
 Check: cron returns 401 without the secret; with it the demo resets and the outbox repopulates; a second run sends nothing new.
 
 ## Phase 7 · Polish and ship — in progress
-Done: full-screen /ask page, mobile pass (scrolling filter chips, full-width vibe button, tab bar), favicon, Open Graph image, README, CONTRIBUTING, Playwright screenshot script, production build passes.
+Done: full-screen /ask page, mobile pass (scrolling filter chips, full-width vibe button, tab bar), favicon, Open Graph image, README, CONTRIBUTING, Playwright screenshot script, production build passes. Split the largest files, lint-enforced layer boundaries, `pnpm video` walkthrough recorder.
 Waiting on: Vercel login + production secrets (Neon, Gemini, Google OAuth, Gmail) to deploy, run migrations/seed, re-take AI screenshots and run the smoke test against the live URL.
