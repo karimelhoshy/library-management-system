@@ -15,3 +15,7 @@ Check: Vitest covers double-booking and availability math against Postgres; the 
 ## Phase 4 · Library ops — done
 Holds queue with promotion on return/cancel/expiry, renewals, overdue badges, loans desk (return on behalf, overdue filter), dashboard (stats, 30-day chart, top borrowed, overdue list, activity), activity log, ⌘K palette, ISBN lookup + camera scan, users admin with role dropdown, mobile profile page.
 Check: lint, typecheck, 59 unit/integration tests and both Playwright smoke tests pass; demo staff are scoped to demo accounts.
+
+## Phase 5 · AI — done (pending a live key check)
+Embeddings on save/seed with hash-based refresh, Search by vibe (pgvector cosine), Ask the Librarian (Gemini function calling, ≤5 steps, NDJSON streaming, confirm cards, mini book cards, per-user history and rate limit), shelf-photo import (vision → Open Library → review table).
+Check: an integration test drives the agent loop with a scripted model (search → propose hold → confirm → hold exists); with GEMINI_API_KEY unset every AI surface shows a friendly off state. Live Gemini run still to do once a key is provided.

@@ -1,18 +1,8 @@
 import Link from "next/link";
 import type { BookCard as BookCardData } from "@/server/services/catalog";
-import { availabilityLabel, formatShortDate } from "@/server/services/rules";
 import { AvailabilityText } from "./availability";
 import { BookCover } from "./book-cover";
-
-/** Card status from the viewer's point of view first, then general availability. */
-export function cardStatus(book: BookCardData) {
-  if (book.myLoanDueAt) {
-    return { tone: "mine" as const, text: `On loan to you · due ${formatShortDate(book.myLoanDueAt)}` };
-  }
-  if (book.myHoldStatus === "ready") return { tone: "ready" as const, text: "Ready for you to pick up" };
-  if (book.myHoldStatus === "waiting") return { tone: "onloan" as const, text: "You're in the queue" };
-  return availabilityLabel(book);
-}
+import { cardStatus } from "./card-status";
 
 export function BookCard({ book, priority = false }: { book: BookCardData; priority?: boolean }) {
   const status = cardStatus(book);

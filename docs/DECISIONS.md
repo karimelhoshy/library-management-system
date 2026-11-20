@@ -29,3 +29,8 @@ One line each: what we chose and why.
 - **Demo staff are scoped to demo accounts.** In the public demo anyone can be Ada/Leo, so user lists, the loans desk, activity and outbox hide real (Google) accounts, and role changes/lending to them are refused.
 - **AI quota check-and-record runs under a per-user advisory lock** (`pg_advisory_xact_lock`) so parallel requests can't exceed the limit.
 - **Dashboard chart is a single series (loans per day)** with a hover tooltip and a screen-reader table; no legend needed for one series.
+- **Chat streams newline-delimited JSON** (`text`, `status`, `books`, `proposal`, `done`, `error` events) from a route handler; no extra SDK needed on the client.
+- **Write tools return proposals, stored on the assistant message.** Confirming calls the same services as the UI (`placeHold`, `borrowBook`, `renewLoan`), so every rule and permission applies; resolving twice is a no-op.
+- **Mini book cards = books the agent looked up that its reply names** (plus any with a proposal), capped at 4.
+- **Model history replays text only**; earlier proposals are summarised inline (e.g. "[Offered to place hold "Circe": confirmed]").
+- **Gemini thinking level LOW for chat** to keep replies fast; falls back to the model default if a model rejects it.
