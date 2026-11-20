@@ -1,4 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
+import type { Actor } from "@/server/auth/permissions";
+import { isDemoScoped } from "@/server/auth/scope";
 import { db, type Executor } from "@/server/db";
 import { activityLog, users } from "@/server/db/schema";
 
@@ -31,7 +33,12 @@ export type ActivityItem = {
   actorName: string | null;
 };
 
-export async function listRecentActivity(limit = 20): Promise<ActivityItem[]> {
+/**
+ * Recent writes. Demo staff only see activity by and about demo accounts,
+ * so real members' names never show up in the public demo.
+ */
+export async function listRecentActivity(actor: Actor, limit = 20): Promise<ActivityItem[]> {
+  const scoped = isDemoScoped(actor);
   return db
     .select({
       id: activityLog.id,
@@ -44,6 +51,13 @@ export async function listRecentActivity(limit = 20): Promise<ActivityItem[]> {
     })
     .from(activityLog)
     .leftJoin(users, eq(users.id, activityLog.actorId))
+    .where(
+      scoped
+        ? sql`(${users.isDemo} = true or ${activityLog.actorId} is null)
+            and (${activityLog.metadata}->>'memberId' is null
+              or exists (select 1 from users u where u.id = ${activityLog.metadata}->>'memberId' and u.is_demo))`
+        : undefined,
+    )
     .orderBy(desc(activityLog.createdAt))
     .limit(limit);
 }

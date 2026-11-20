@@ -1,5 +1,6 @@
 import { asc, eq, sql } from "drizzle-orm";
-import { assertCan, DomainError, type Actor } from "@/server/auth/permissions";
+import { assertCan, DomainError, ForbiddenError, type Actor } from "@/server/auth/permissions";
+import { isDemoScoped } from "@/server/auth/scope";
 import { db } from "@/server/db";
 import { users, type Role } from "@/server/db/schema";
 import { logActivity } from "./activity";
@@ -33,6 +34,7 @@ export async function listUsers(actor: Actor): Promise<UserRow[]> {
       activeHolds: sql<number>`(select count(*)::int from holds h where h.user_id = "users"."id" and h.status in ('waiting', 'ready'))`,
     })
     .from(users)
+    .where(isDemoScoped(actor) ? eq(users.isDemo, true) : undefined)
     .orderBy(sql`case ${users.role} when 'admin' then 0 when 'librarian' then 1 else 2 end`, asc(users.name));
 }
 
@@ -42,6 +44,7 @@ export async function listMembers(actor: Actor) {
   return db
     .select({ id: users.id, name: users.name, email: users.email })
     .from(users)
+    .where(isDemoScoped(actor) ? eq(users.isDemo, true) : undefined)
     .orderBy(asc(users.name));
 }
 
@@ -49,6 +52,10 @@ export async function changeRole(actor: Actor, userId: string, role: Role): Prom
   assertCan(actor, "user:manage");
   if (userId === actor.id) {
     throw new DomainError("You can't change your own role. Ask another admin.");
+  }
+  if (isDemoScoped(actor)) {
+    const [target] = await db.select({ isDemo: users.isDemo }).from(users).where(eq(users.id, userId));
+    if (!target?.isDemo) throw new ForbiddenError("In the demo, you can only change demo accounts.");
   }
   await db.transaction(async (tx) => {
     const [updated] = await tx
@@ -62,7 +69,7 @@ export async function changeRole(actor: Actor, userId: string, role: Role): Prom
       action: "user.role_changed",
       entityType: "user",
       entityId: userId,
-      metadata: { memberName: updated.name, role },
+      metadata: { memberName: updated.name, memberId: userId, role },
     });
   });
 }

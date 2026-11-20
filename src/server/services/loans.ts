@@ -2,6 +2,7 @@ import { and, asc, desc, eq, ilike, isNull, lt, or, sql, type SQL } from "drizzl
 import { alias } from "drizzle-orm/pg-core";
 import { UNDO_WINDOW_SECONDS } from "@/lib/config";
 import { assertCan, can, DomainError, ForbiddenError, type Actor } from "@/server/auth/permissions";
+import { isDemoScoped } from "@/server/auth/scope";
 import { db } from "@/server/db";
 import { books, holds, loans, users } from "@/server/db/schema";
 import { logActivity } from "./activity";
@@ -34,6 +35,10 @@ export async function borrowBook(
   const memberId = input.memberId ?? actor.id;
   assertLoanAccess(actor, memberId);
   const name = await memberName(memberId);
+  if (memberId !== actor.id && isDemoScoped(actor)) {
+    const [target] = await db.select({ isDemo: users.isDemo }).from(users).where(eq(users.id, memberId));
+    if (!target?.isDemo) throw new ForbiddenError("In the demo, you can only lend to demo accounts.");
+  }
 
   return db.transaction(async (tx) => {
     const book = await lockBook(tx, input.bookId);
@@ -75,7 +80,7 @@ export async function borrowBook(
       action: "loan.borrowed",
       entityType: "loan",
       entityId: loan.id,
-      metadata: { title: book.title, bookId: book.id, memberName: name, fromHold: hadReadyHold },
+      metadata: { title: book.title, bookId: book.id, memberName: name, memberId, fromHold: hadReadyHold },
     });
 
     return { loanId: loan.id, bookId: book.id, title: book.title, dueAt: loan.dueAt };
@@ -104,7 +109,7 @@ export async function returnLoan(actor: Actor, loanId: string): Promise<ReturnRe
       action: "loan.returned",
       entityType: "loan",
       entityId: loanId,
-      metadata: { title: book.title, bookId: book.id, memberName: name },
+      metadata: { title: book.title, bookId: book.id, memberName: name, memberId: loan.userId },
     });
 
     // The freed copy goes to the first person waiting, if anyone is.
@@ -148,7 +153,13 @@ export async function renewLoan(
       action: "loan.renewed",
       entityType: "loan",
       entityId: loanId,
-      metadata: { title: book.title, bookId: book.id, memberName: name, dueAt: check.newDueAt.toISOString() },
+      metadata: {
+        title: book.title,
+        bookId: book.id,
+        memberName: name,
+        memberId: loan.userId,
+        dueAt: check.newDueAt.toISOString(),
+      },
     });
 
     return { loanId, title: book.title, dueAt: check.newDueAt };
@@ -282,6 +293,7 @@ export async function listActiveLoans(
 ): Promise<LoanRow[]> {
   assertCan(actor, "loan:any");
   const conditions: SQL[] = [isNull(loans.returnedAt)];
+  if (isDemoScoped(actor)) conditions.push(eq(member.isDemo, true));
   if (filter.overdueOnly) conditions.push(lt(loans.dueAt, new Date()));
   if (filter.q?.trim()) {
     const like = `%${filter.q.trim()}%`;
@@ -294,5 +306,8 @@ export async function listActiveLoans(
 
 export async function listBookLoanHistory(actor: Actor, bookId: string, limit = 15): Promise<LoanRow[]> {
   assertCan(actor, "loan:any");
-  return loanSelect().where(eq(loans.bookId, bookId)).orderBy(desc(loans.borrowedAt)).limit(limit);
+  return loanSelect()
+    .where(and(eq(loans.bookId, bookId), isDemoScoped(actor) ? eq(member.isDemo, true) : undefined))
+    .orderBy(desc(loans.borrowedAt))
+    .limit(limit);
 }

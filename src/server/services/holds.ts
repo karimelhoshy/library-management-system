@@ -78,7 +78,7 @@ export async function promoteHolds(tx: Transaction, bookId: string): Promise<Pro
       action: "hold.ready",
       entityType: "hold",
       entityId: hold.holdId,
-      metadata: { title: book.title, bookId, memberName: hold.userName },
+      metadata: { title: book.title, bookId, memberName: hold.userName, memberId: hold.userId },
     });
   }
 

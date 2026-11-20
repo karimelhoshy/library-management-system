@@ -1,4 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
+import type { Actor } from "@/server/auth/permissions";
+import { isDemoScoped } from "@/server/auth/scope";
 import { APP_NAME } from "@/lib/config";
 import { db } from "@/server/db";
 import { emailOutbox } from "@/server/db/schema";
@@ -73,6 +75,16 @@ export async function sendEmail(input: SendEmailInput): Promise<"sent" | "skippe
   return status;
 }
 
-export async function listOutbox(limit = 100) {
-  return db.select().from(emailOutbox).orderBy(desc(emailOutbox.createdAt)).limit(limit);
+/** Outbox for librarians. Demo staff only see emails addressed to demo accounts. */
+export async function listOutbox(actor: Actor, limit = 100) {
+  return db
+    .select()
+    .from(emailOutbox)
+    .where(
+      isDemoScoped(actor)
+        ? sql`exists (select 1 from users u where u.id = ${emailOutbox.toUserId} and u.is_demo)`
+        : undefined,
+    )
+    .orderBy(desc(emailOutbox.createdAt))
+    .limit(limit);
 }

@@ -253,7 +253,12 @@ async function seedLoansAndHolds(saved: SavedBook[], now: Date, log: Log) {
   );
   const titles = new Map(saved.map((b) => [b.id, b.title]));
   const events = all.flatMap((loan) => {
-    const meta = { title: titles.get(loan.bookId), bookId: loan.bookId, memberName: names.get(loan.userId) };
+    const meta = {
+      title: titles.get(loan.bookId),
+      bookId: loan.bookId,
+      memberName: names.get(loan.userId),
+      memberId: loan.userId,
+    };
     const rows = [
       {
         actorId: loan.processedBy,

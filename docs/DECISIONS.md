@@ -25,3 +25,5 @@ One line each: what we chose and why.
 - **Seed swap:** *Murder in the Crooked House* has no cover on Open Library, so *The Moai Island Puzzle* (another translated Japanese locked-room mystery) stands in.
 - **Local dev DB: Docker `pgvector/pgvector:pg17` on port 54329** (`docker compose up -d`).
 - **pnpm 12 + Node 24.** `pnpm-workspace.yaml` allow-lists build scripts (only esbuild needs one).
+- **Loading skeletons only on catalog, book and loans routes.** A route-wide `loading.tsx` streams a 200 before `forbidden()` can run; staff pages render fully on the server so they return a true 403.
+- **Demo staff are scoped to demo accounts.** In the public demo anyone can be Ada/Leo, so user lists, the loans desk, activity and outbox hide real (Google) accounts, and role changes/lending to them are refused.

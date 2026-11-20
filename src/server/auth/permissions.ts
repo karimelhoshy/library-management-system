@@ -27,7 +27,7 @@ const MATRIX: Record<Role, ReadonlySet<Action>> = {
   admin: new Set(ADMIN),
 };
 
-export type Actor = { id: string; role: Role };
+export type Actor = { id: string; role: Role; isDemo?: boolean };
 
 export function can(user: Pick<Actor, "role"> | null | undefined, action: Action): boolean {
   if (!user) return false;

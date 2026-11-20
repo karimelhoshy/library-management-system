@@ -7,3 +7,7 @@ Check: `pnpm dev` shows the seeded catalog in the approved layout; lint, typeche
 ## Phase 2 · Auth and roles — done
 Auth.js v5 (Google + demo provider gated by `DEMO_MODE`), `can()` permission matrix, `forbidden()` 403 pages, role switcher that swaps the real session, sign-in page with demo cards.
 Check: `can()` unit-tested for every role × action; services throw `ForbiddenError` (403) and integration tests prove members can't act for others.
+
+## Phase 3 · Core — done
+Catalog with typo-tolerant search, filters and URL-synced queries; book detail (desktop + mobile sheet with sticky Borrow/Ask bar); add/edit/delete with ISBN lookup and barcode scan; optimistic borrow/return with Undo toasts; My loans & holds.
+Check: Vitest covers double-booking and availability math against Postgres; the Playwright smoke test (Member → search "hobit" → borrow → return) and the 403 test pass.
