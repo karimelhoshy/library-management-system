@@ -19,3 +19,7 @@ Check: lint, typecheck, 59 unit/integration tests and both Playwright smoke test
 ## Phase 5 · AI — done (pending a live key check)
 Embeddings on save/seed with hash-based refresh, Search by vibe (pgvector cosine), Ask the Librarian (Gemini function calling, ≤5 steps, NDJSON streaming, confirm cards, mini book cards, per-user history and rate limit), shelf-photo import (vision → Open Library → review table).
 Check: an integration test drives the agent loop with a scripted model (search → propose hold → confirm → hold exists); with GEMINI_API_KEY unset every AI surface shows a friendly off state. Live Gemini run still to do once a key is provided.
+
+## Phase 6 · Notifications — done
+Branded email templates, Nodemailer/Gmail transport, outbox writer with dedupe keys, daily `/api/cron/reminders` (CRON_SECRET, demo reset, hold expiry, due-soon/overdue reminders), Outbox page with sandboxed previews, in-app ready-hold notices, `vercel.json` cron at 06:00 UTC.
+Check: cron returns 401 without the secret; with it the demo resets and the outbox repopulates; a second run sends nothing new.

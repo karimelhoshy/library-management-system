@@ -34,3 +34,6 @@ One line each: what we chose and why.
 - **Mini book cards = books the agent looked up that its reply names** (plus any with a proposal), capped at 4.
 - **Model history replays text only**; earlier proposals are summarised inline (e.g. "[Offered to place hold "Circe": confirmed]").
 - **Gemini thinking level LOW for chat** to keep replies fast; falls back to the model default if a model rejects it.
+- **Cron runs at 06:00 UTC daily** (Hobby plan allows one run per day) and compares the bearer token in constant time.
+- **`vercel.json` (not `vercel.ts`) for the cron** to avoid an extra dependency for one setting.
+- **Email previews render in a sandboxed `<iframe srcdoc>`** so stored HTML can't run scripts.
