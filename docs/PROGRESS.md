@@ -11,3 +11,7 @@ Check: `can()` unit-tested for every role × action; services throw `ForbiddenEr
 ## Phase 3 · Core — done
 Catalog with typo-tolerant search, filters and URL-synced queries; book detail (desktop + mobile sheet with sticky Borrow/Ask bar); add/edit/delete with ISBN lookup and barcode scan; optimistic borrow/return with Undo toasts; My loans & holds.
 Check: Vitest covers double-booking and availability math against Postgres; the Playwright smoke test (Member → search "hobit" → borrow → return) and the 403 test pass.
+
+## Phase 4 · Library ops — done
+Holds queue with promotion on return/cancel/expiry, renewals, overdue badges, loans desk (return on behalf, overdue filter), dashboard (stats, 30-day chart, top borrowed, overdue list, activity), activity log, ⌘K palette, ISBN lookup + camera scan, users admin with role dropdown, mobile profile page.
+Check: lint, typecheck, 59 unit/integration tests and both Playwright smoke tests pass; demo staff are scoped to demo accounts.

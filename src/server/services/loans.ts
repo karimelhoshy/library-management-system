@@ -1,20 +1,14 @@
 import { and, asc, desc, eq, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UNDO_WINDOW_SECONDS } from "@/lib/config";
-import { assertCan, can, DomainError, ForbiddenError, type Actor } from "@/server/auth/permissions";
-import { isDemoScoped } from "@/server/auth/scope";
+import { assertCan, DomainError, type Actor } from "@/server/auth/permissions";
+import { assertCanActFor, isDemoScoped } from "@/server/auth/scope";
 import { db } from "@/server/db";
 import { books, holds, loans, users } from "@/server/db/schema";
 import { logActivity } from "./activity";
 import { countCopies, fulfillReadyHold, lockBook, promoteHolds, type PromotedHold } from "./holds";
 import { notifyHoldsReadySafely } from "./notifications";
 import { availableCopies, checkRenewal, dueDateFrom } from "./rules";
-
-/** Acting for yourself needs `loan:self`; acting for someone else needs `loan:any`. */
-function assertLoanAccess(actor: Actor, memberId: string) {
-  if (memberId === actor.id) assertCan(actor, "loan:self");
-  else if (!can(actor, "loan:any")) throw new ForbiddenError();
-}
 
 async function memberName(memberId: string): Promise<string | null> {
   const [member] = await db.select({ name: users.name }).from(users).where(eq(users.id, memberId));
@@ -33,12 +27,8 @@ export async function borrowBook(
   input: { bookId: string; memberId?: string },
 ): Promise<BorrowResult> {
   const memberId = input.memberId ?? actor.id;
-  assertLoanAccess(actor, memberId);
+  await assertCanActFor(actor, memberId);
   const name = await memberName(memberId);
-  if (memberId !== actor.id && isDemoScoped(actor)) {
-    const [target] = await db.select({ isDemo: users.isDemo }).from(users).where(eq(users.id, memberId));
-    if (!target?.isDemo) throw new ForbiddenError("In the demo, you can only lend to demo accounts.");
-  }
 
   return db.transaction(async (tx) => {
     const book = await lockBook(tx, input.bookId);
@@ -92,7 +82,7 @@ export type ReturnResult = { loanId: string; bookId: string; title: string; prom
 export async function returnLoan(actor: Actor, loanId: string): Promise<ReturnResult> {
   const [loan] = await db.select().from(loans).where(eq(loans.id, loanId));
   if (!loan) throw new DomainError("Loan not found.", 404);
-  assertLoanAccess(actor, loan.userId);
+  await assertCanActFor(actor, loan.userId);
   const name = await memberName(loan.userId);
 
   const result = await db.transaction(async (tx) => {
@@ -127,7 +117,7 @@ export async function renewLoan(
 ): Promise<{ loanId: string; title: string; dueAt: Date }> {
   const [loan] = await db.select().from(loans).where(eq(loans.id, loanId));
   if (!loan) throw new DomainError("Loan not found.", 404);
-  assertLoanAccess(actor, loan.userId);
+  await assertCanActFor(actor, loan.userId);
   const name = await memberName(loan.userId);
 
   return db.transaction(async (tx) => {
@@ -174,7 +164,7 @@ function withinUndoWindow(at: Date) {
 export async function undoBorrow(actor: Actor, loanId: string): Promise<void> {
   const [loan] = await db.select().from(loans).where(eq(loans.id, loanId));
   if (!loan) throw new DomainError("Loan not found.", 404);
-  assertLoanAccess(actor, loan.userId);
+  await assertCanActFor(actor, loan.userId);
   if (loan.returnedAt || !withinUndoWindow(loan.borrowedAt)) {
     throw new DomainError("This loan can no longer be undone. Return it instead.");
   }
@@ -198,7 +188,7 @@ export async function undoBorrow(actor: Actor, loanId: string): Promise<void> {
 export async function undoReturn(actor: Actor, loanId: string): Promise<void> {
   const [loan] = await db.select().from(loans).where(eq(loans.id, loanId));
   if (!loan) throw new DomainError("Loan not found.", 404);
-  assertLoanAccess(actor, loan.userId);
+  await assertCanActFor(actor, loan.userId);
   if (!loan.returnedAt || !withinUndoWindow(loan.returnedAt)) {
     throw new DomainError("This return can no longer be undone.");
   }

@@ -27,3 +27,5 @@ One line each: what we chose and why.
 - **pnpm 12 + Node 24.** `pnpm-workspace.yaml` allow-lists build scripts (only esbuild needs one).
 - **Loading skeletons only on catalog, book and loans routes.** A route-wide `loading.tsx` streams a 200 before `forbidden()` can run; staff pages render fully on the server so they return a true 403.
 - **Demo staff are scoped to demo accounts.** In the public demo anyone can be Ada/Leo, so user lists, the loans desk, activity and outbox hide real (Google) accounts, and role changes/lending to them are refused.
+- **AI quota check-and-record runs under a per-user advisory lock** (`pg_advisory_xact_lock`) so parallel requests can't exceed the limit.
+- **Dashboard chart is a single series (loans per day)** with a hover tooltip and a screen-reader table; no legend needed for one series.

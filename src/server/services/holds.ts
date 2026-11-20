@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
-import { assertCan, can, DomainError, ForbiddenError, type Actor } from "@/server/auth/permissions";
+import { assertCan, DomainError, type Actor } from "@/server/auth/permissions";
+import { assertCanActFor } from "@/server/auth/scope";
 import { db, type Transaction } from "@/server/db";
 import { books, holds, loans, users } from "@/server/db/schema";
 import { logActivity } from "./activity";
@@ -147,7 +148,7 @@ export async function cancelHold(
   const [hold] = await db.select().from(holds).where(eq(holds.id, holdId));
   if (!hold) throw new DomainError("Hold not found.", 404);
   if (hold.userId === actor.id) assertCan(actor, "hold:self");
-  else if (!can(actor, "loan:any")) throw new ForbiddenError();
+  else await assertCanActFor(actor, hold.userId);
 
   const result = await db.transaction(async (tx) => {
     const book = await lockBook(tx, hold.bookId);

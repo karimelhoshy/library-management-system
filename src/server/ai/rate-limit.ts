@@ -19,15 +19,19 @@ export type AiKind = keyof typeof AI_LIMITS;
 export async function consumeAiQuota(userId: string, kind: AiKind): Promise<void> {
   const { max, windowMinutes } = AI_LIMITS[kind];
   const since = new Date(Date.now() - windowMinutes * 60_000);
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(aiUsage)
-    .where(and(eq(aiUsage.userId, userId), eq(aiUsage.kind, kind), gt(aiUsage.createdAt, since)));
-  if ((row?.n ?? 0) >= max) {
-    throw new DomainError(
-      `You've reached the limit of ${max} AI ${kind === "vision" ? "photo scans" : "requests"} per hour. Please try again a little later.`,
-      429,
-    );
-  }
-  await db.insert(aiUsage).values({ userId, kind });
+  await db.transaction(async (tx) => {
+    // Serialise check-and-record per user+kind so parallel requests can't slip past the limit.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`ai:${userId}:${kind}`}))`);
+    const [row] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(aiUsage)
+      .where(and(eq(aiUsage.userId, userId), eq(aiUsage.kind, kind), gt(aiUsage.createdAt, since)));
+    if ((row?.n ?? 0) >= max) {
+      throw new DomainError(
+        `You've reached the limit of ${max} AI ${kind === "vision" ? "photo scans" : "requests"} per hour. Please try again a little later.`,
+        429,
+      );
+    }
+    await tx.insert(aiUsage).values({ userId, kind });
+  });
 }
