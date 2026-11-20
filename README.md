@@ -96,7 +96,7 @@ pnpm dev                             # http://localhost:3000
 
 Set `DEMO_MODE=true` to get the demo accounts. Other scripts: `pnpm lint`, `pnpm typecheck`, `pnpm test` (add `TEST_DATABASE_URL` to also run the Postgres integration tests), `pnpm test:e2e`, `pnpm db:reset`, `pnpm db:embed`.
 
-`pnpm video` records a captioned walkthrough of a running instance to `recordings/` (needs ffmpeg; `BASE_URL` points it at the live demo, `HEADED=1` lets you watch while you narrate). `pnpm screenshots` refreshes the README images.
+`pnpm video` records a narrated, captioned walkthrough of a running instance to `recordings/`, with subtitles and chapter times (needs ffmpeg; the voiceover uses macOS `say`). `BASE_URL` points it at the live demo, `VOICE` picks another voice, and `HEADED=1 VOICE=off` lets you watch it play while you record your own voice. The narration and clicks live in [`scripts/walkthrough/tour.mts`](scripts/walkthrough/tour.mts). `pnpm screenshots` refreshes the README images.
 
 ## Self-hosting
 

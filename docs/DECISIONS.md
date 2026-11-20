@@ -40,3 +40,4 @@ One line each: what we chose and why.
 - **Layer boundaries are lint rules, not just convention** (`@typescript-eslint/no-restricted-imports`), so the structure holds once outside contributors arrive.
 - **Chat stream types live in `src/lib`** because the server writes them and the browser reads them; neither side should own them.
 - **The walkthrough video records Chrome's screencast frames and encodes them with ffmpeg**, because Playwright's built-in video uses a fixed low bitrate that blurs text.
+- **The voiceover uses macOS `say`, generated before recording**, so it's offline and free, and each step waits for its line to finish. That keeps the voice in sync without editing. `speak()` in `voice.mts` is the one place to swap in a cloud voice.
