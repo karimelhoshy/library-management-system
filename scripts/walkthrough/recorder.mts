@@ -7,12 +7,16 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { VIDEO } from "./config.mjs";
+import { FAST_FORWARD, VIDEO } from "./config.mjs";
 import { ffmpeg } from "./media.mjs";
+
+/** Maps a moment during recording (epoch seconds) to its time in the finished video. */
+export type ToVideoTime = (at: number) => number;
 
 export async function startRecorder(page: Page) {
   const dir = mkdtempSync(join(tmpdir(), "shelfwise-video-"));
   const frames: { file: string; at: number }[] = [];
+  const spedUp: { from: number; to: number }[] = [];
   const cdp = await page.context().newCDPSession(page);
   cdp.on("Page.screencastFrame", (frame) => {
     const file = join(dir, `${String(frames.length).padStart(6, "0")}.jpg`);
@@ -23,18 +27,34 @@ export async function startRecorder(page: Page) {
   await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: VIDEO.width, maxHeight: VIDEO.height });
 
   return {
-    /** Stops, encodes to `output`, and returns when the first frame was captured (epoch seconds). */
-    async stop(output: string): Promise<number> {
+    /** Plays everything from now until the returned function is called FAST_FORWARD times faster. */
+    speedUp(): () => void {
+      const span = { from: Date.now() / 1000, to: Infinity };
+      spedUp.push(span);
+      return () => {
+        span.to = Date.now() / 1000;
+      };
+    },
+
+    /** Stops, encodes to `output`, and returns how recording times map onto the video. */
+    async stop(output: string): Promise<ToVideoTime> {
       // Take the end time first: stopping can take seconds, which would freeze the last frame.
       const end = Date.now() / 1000;
       await cdp.send("Page.stopScreencast");
       const kept = frames.filter((frame) => frame.at <= end);
       if (kept.length === 0) throw new Error("No frames were captured.");
+      const first = kept[0]!.at;
+      const toVideoTime: ToVideoTime = (at) =>
+        spedUp.reduce(
+          (time, span) => time - Math.max(0, Math.min(at, span.to) - Math.max(first, span.from)) * (1 - 1 / FAST_FORWARD),
+          at - first,
+        );
       // Each frame stays on screen until the next one arrives (Chrome only sends frames on change).
       const list = ["ffconcat version 1.0"];
       kept.forEach((frame, i) => {
         const next = kept[i + 1]?.at ?? end;
-        list.push(`file '${frame.file}'`, `duration ${Math.max(next - frame.at, 0.001).toFixed(3)}`);
+        const seconds = toVideoTime(next) - toVideoTime(frame.at);
+        list.push(`file '${frame.file}'`, `duration ${Math.max(seconds, 0.001).toFixed(3)}`);
       });
       list.push(`file '${kept.at(-1)!.file}'`);
       const listFile = join(dir, "frames.txt");
@@ -45,11 +65,11 @@ export async function startRecorder(page: Page) {
         "-vf", `fps=30,scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=white,format=yuv420p`,
         "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-movflags", "+faststart",
         // The repeated last frame is needed by older ffmpeg but doubles the final shot in newer ones; -t settles it.
-        "-t", (end - kept[0]!.at).toFixed(3),
+        "-t", toVideoTime(end).toFixed(3),
         output,
       ]);
       rmSync(dir, { recursive: true, force: true });
-      return kept[0]!.at;
+      return toVideoTime;
     },
   };
 }

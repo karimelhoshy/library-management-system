@@ -11,6 +11,8 @@ export const VOICE = process.env.VOICE ?? "Aoede";
 /** How the narrator sounds across every line. Keep it short; long directions make the voice drift. */
 export const VOICE_STYLE = process.env.VOICE_STYLE ?? "relaxed, friendly and conversational";
 export const TTS_MODEL = process.env.TTS_MODEL ?? "gemini-3.8-flash-tts";
+/** How much faster the video plays while waiting on the AI (shown with a caption). */
+export const FAST_FORWARD = 6;
 /** A step id to also export as a GIF. */
 export const GIF_STEP = process.env.GIF;
 

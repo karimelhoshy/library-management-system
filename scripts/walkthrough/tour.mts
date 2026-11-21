@@ -13,6 +13,8 @@ type StepContext<Line extends string> = {
   state: TourState;
   /** Shows and speaks one of the step's lines. `{ wait: false }` carries on while it plays. */
   say: (line: Line, options?: { wait?: boolean }) => Promise<void>;
+  /** Lets the current line finish, then plays the video faster while `work` runs (waiting on the AI). */
+  fastForward: <T>(work: () => Promise<T>) => Promise<T>;
 };
 
 export type Step = {
@@ -148,17 +150,20 @@ export const STEPS: Step[] = [
       ask: "Ask the Librarian can search, check the shelf, and place holds, borrow or renew for you.",
       confirm: "Anything that changes data comes back as a card. Nothing happens until you confirm it.",
     },
-    async run({ page, say }) {
+    async run({ page, say, fastForward }) {
       const chat = page.getByRole("region", { name: "Ask the Librarian" });
       await click(page, chat.getByRole("button", { name: "New chat" }));
       await say("ask", { wait: false });
-      await typeInto(page, page.locator("#chat-input-column"), "Something short and funny I can borrow today");
+      // Asking it to borrow, not just suggest, is what brings up a confirmation card.
+      await typeInto(page, page.locator("#chat-input-column"), "Find me something short and funny, and borrow it for me");
       await page.keyboard.press("Enter");
       const confirm = chat.getByRole("button", { name: /^(Borrow|Place hold|Renew)$/ }).first();
-      const proposed = await confirm
-        .waitFor({ timeout: 60_000 })
-        .then(() => true)
-        .catch(() => false);
+      const proposed = await fastForward(() =>
+        confirm
+          .waitFor({ timeout: 90_000 })
+          .then(() => true)
+          .catch(() => false),
+      );
       await settle(page);
       if (!proposed) return wait(page, 3000);
       await say("confirm");

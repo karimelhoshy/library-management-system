@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { settle } from "./actions.mjs";
-import { BASE_URL, GIF_STEP, HEADED, OUT_DIR, VIEWPORT, VOICE } from "./config.mjs";
+import { BASE_URL, FAST_FORWARD, GIF_STEP, HEADED, OUT_DIR, VIEWPORT, VOICE } from "./config.mjs";
 import { chapterTime, ffmpeg, hasCommand } from "./media.mjs";
 import { createNarrator, toSrt } from "./narrator.mjs";
 import { setCaption, OVERLAY_SCRIPT } from "./overlay.mjs";
@@ -66,6 +66,18 @@ const state: TourState = { ai: false };
 const ran: { id: string; title: string; start: number; end: number }[] = [];
 const now = () => Date.now() / 1000;
 
+async function fastForward<T>(work: () => Promise<T>): Promise<T> {
+  await narrator.finish(); // the voice isn't sped up, so no line may play during this
+  await setCaption(page, `⏩  ${FAST_FORWARD}× speed while Gemini thinks`);
+  const resume = recorder.speedUp();
+  try {
+    return await work();
+  } finally {
+    resume();
+    await setCaption(page, " ");
+  }
+}
+
 for (const step of STEPS) {
   if (step.when && !step.when(state)) continue;
   await narrator.finish();
@@ -73,7 +85,7 @@ for (const step of STEPS) {
   const start = now();
   await setCaption(page, " "); // blank the bar so the last step's caption doesn't linger
   try {
-    await step.run({ page, state, say: (line, options) => narrator.say(step.lines[line]!, options) });
+    await step.run({ page, state, fastForward, say: (line, options) => narrator.say(step.lines[line]!, options) });
   } catch (error) {
     console.error(`\n✗ Step "${step.id}" failed. Nothing was saved.\n`);
     await browser.close();
@@ -88,20 +100,20 @@ await narrator.finish();
 console.log("Encoding…");
 const video = join(OUT_DIR, "shelfwise-walkthrough.mp4");
 const silent = clips ? join(work, "silent.mp4") : video;
-const videoStart = await recorder.stop(silent);
+const toVideoTime = await recorder.stop(silent);
 await context.close();
 await restoreDemo(browser);
 await browser.close();
 
 if (clips) {
   const voiced = narrator.spoken.filter((line) => line.clip);
-  addVoiceTrack(silent, voiced.map((line) => ({ file: line.clip!.file, at: Math.max(line.start - videoStart, 0) })), video);
+  addVoiceTrack(silent, voiced.map((line) => ({ file: line.clip!.file, at: Math.max(toVideoTime(line.start), 0) })), video);
 }
 rmSync(work, { recursive: true, force: true });
 
 // 4. Subtitles, chapters and the optional GIF.
-const chapters = ran.map((c) => ({ ...c, start: Math.max(c.start - videoStart, 0), end: c.end - videoStart }));
-writeFileSync(join(OUT_DIR, "shelfwise-walkthrough.srt"), toSrt(narrator.spoken, videoStart));
+const chapters = ran.map((c) => ({ ...c, start: Math.max(toVideoTime(c.start), 0), end: toVideoTime(c.end) }));
+writeFileSync(join(OUT_DIR, "shelfwise-walkthrough.srt"), toSrt(narrator.spoken, toVideoTime));
 writeFileSync(join(OUT_DIR, "chapters.txt"), chapters.map((c) => `${chapterTime(c.start)} ${c.title}`).join("\n") + "\n");
 
 if (GIF_STEP) {

@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 import { PACE } from "./config.mjs";
 import { srtTime } from "./media.mjs";
 import { setCaption } from "./overlay.mjs";
+import type { ToVideoTime } from "./recorder.mjs";
 import type { Clip } from "./voice.mjs";
 
 export type SpokenLine = { text: string; start: number; end: number; clip?: Clip };
@@ -45,9 +46,9 @@ export function createNarrator(page: Page, clips: Map<string, Clip> | null) {
   return { say, finish, spoken };
 }
 
-/** Subtitles for the video, with times relative to its first frame. */
-export function toSrt(lines: SpokenLine[], videoStart: number) {
+/** Subtitles for the video, timed against the finished video. */
+export function toSrt(lines: SpokenLine[], toVideoTime: ToVideoTime) {
   return lines
-    .map((line, i) => `${i + 1}\n${srtTime(line.start - videoStart)} --> ${srtTime(line.end - videoStart)}\n${line.text}\n`)
+    .map((line, i) => `${i + 1}\n${srtTime(toVideoTime(line.start))} --> ${srtTime(toVideoTime(line.end))}\n${line.text}\n`)
     .join("\n");
 }
