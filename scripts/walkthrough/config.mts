@@ -6,8 +6,11 @@ export const BASE_URL = (process.env.BASE_URL ?? "http://localhost:3000").replac
 export const PACE = Number(process.env.PACE ?? 1);
 export const HEADED = process.env.HEADED === "1";
 export const CAPTIONS = process.env.CAPTIONS !== "0";
-/** A macOS voice for the voiceover (`say -v '?'` lists them), or "off". */
-export const VOICE = process.env.VOICE ?? "Samantha";
+/** A Gemini voice for the voiceover (names are in Gemini's text-to-speech docs), or "off". */
+export const VOICE = process.env.VOICE ?? "Aoede";
+/** How the narrator sounds across every line. Keep it short; long directions make the voice drift. */
+export const VOICE_STYLE = process.env.VOICE_STYLE ?? "relaxed, friendly and conversational";
+export const TTS_MODEL = process.env.TTS_MODEL ?? "gemini-3.8-flash-tts";
 /** A step id to also export as a GIF. */
 export const GIF_STEP = process.env.GIF;
 

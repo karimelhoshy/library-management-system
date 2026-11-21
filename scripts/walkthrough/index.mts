@@ -3,12 +3,13 @@
  *
  *   pnpm video                                  # local dev server → recordings/shelfwise-walkthrough.mp4
  *   BASE_URL=https://<your-app> pnpm video      # record the live demo instead
- *   VOICE=Daniel pnpm video                     # another macOS voice (`say -v '?'` lists them)
+ *   VOICE=Sulafat pnpm video                    # another Gemini voice
  *   HEADED=1 PACE=1.5 CAPTIONS=0 VOICE=off pnpm video   # watch it play while you record your own voice
  *   GIF=borrow pnpm video                       # also export one step as a GIF (ids are in tour.mts)
  *
- * Writes the MP4 (with a voiceover on macOS), .srt subtitles and chapter timestamps to recordings/.
- * Needs ffmpeg. For a clean run locally, `pnpm db:reset` first; the live demo resets nightly.
+ * Writes the MP4, .srt subtitles and chapter timestamps to recordings/. Needs ffmpeg; the
+ * voiceover needs GEMINI_API_KEY in .env.local. For a clean run locally, `pnpm db:reset`
+ * first; the live demo resets nightly.
  *
  *   tour.mts      the steps: narration and clicks        narrator.mts  captions and timing
  *   voice.mts     text to speech and the audio track     recorder.mts  screen capture → MP4
@@ -39,10 +40,10 @@ let clips: Map<string, Clip> | null = null;
 if (VOICE !== "off") {
   if (voiceAvailable()) {
     const lines = STEPS.flatMap((step) => Object.values(step.lines));
-    console.log(`Recording ${lines.length} lines of narration with the "${VOICE}" voice…`);
-    clips = await synthesize(lines, VOICE, work);
+    console.log(`Voicing ${lines.length} lines of narration with Gemini's "${VOICE}" voice…`);
+    clips = await synthesize(lines, VOICE);
   } else {
-    console.warn("No macOS `say` here, so the video will have no voiceover (set VOICE=off to hide this).");
+    console.warn("No GEMINI_API_KEY in .env.local, so the video gets captions but no voiceover (VOICE=off hides this).");
   }
 }
 
