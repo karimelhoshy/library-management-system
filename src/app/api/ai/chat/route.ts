@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { ChatStreamEvent } from "@/lib/chat-types";
-import { runLibrarian } from "@/server/ai/agent";
 import { consumeAiQuota } from "@/server/ai/rate-limit";
+import { replyAndSave } from "@/server/ai/turn";
 import { can, DomainError } from "@/server/auth/permissions";
 import { getCurrentUser } from "@/server/auth/session";
 import { isAiEnabled } from "@/server/env";
@@ -46,28 +46,28 @@ export async function POST(request: Request) {
 
   const threadId = parsed.data.threadId ?? randomUUID();
   const history = parsed.data.threadId ? (await loadThread(user.id, threadId, 12)) : [];
-  const userMessageId = await saveMessage(user.id, threadId, "user", { text: parsed.data.message });
+  await saveMessage(user.id, threadId, "user", { text: parsed.data.message });
 
   const encoder = new TextEncoder();
+  // If the member leaves mid-reply (closes the tab, switches account), the turn still
+  // finishes and is saved; there's just nobody to stream it to.
+  let open = true;
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (event: ChatStreamEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
-      send({ type: "thread", threadId, userMessageId });
+      const send = (event: ChatStreamEvent) => {
+        if (open) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
       try {
-        const agent = runLibrarian(user, history, parsed.data.message);
-        let step = await agent.next();
-        while (!step.done) {
-          send(step.value);
-          step = await agent.next();
-        }
-        const messageId = await saveMessage(user.id, threadId, "assistant", step.value.content);
-        send({ type: "done", messageId });
+        for await (const event of replyAndSave(user, threadId, history, parsed.data.message)) send(event);
       } catch (error) {
         console.error("[api/ai/chat] stream failed", error);
         send({ type: "error", message: "Something went wrong. Please try again." });
       } finally {
-        controller.close();
+        if (open) controller.close();
       }
+    },
+    cancel() {
+      open = false;
     },
   });
 

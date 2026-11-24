@@ -1,10 +1,12 @@
 /**
  * The Ask-the-Librarian loop end to end against Postgres, with a scripted fake Gemini:
- * the model searches, proposes a hold, replies; the member confirms; the hold exists.
+ * the model searches, proposes a hold, replies; the member confirms mid-reply; the hold exists.
  * Runs when TEST_DATABASE_URL is set.
  */
 import type { Content } from "@google/genai";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { ChatStreamEvent } from "@/lib/chat-types";
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -74,9 +76,9 @@ describe.skipIf(!url)("Ask the Librarian (integration, fake model)", () => {
     await db?.pool.end();
   });
 
-  it("searches, proposes a hold, and the hold is placed only after confirming", async () => {
-    const { runLibrarian } = await import("@/server/ai/agent");
-    const { saveMessage, resolveProposal } = await import("@/server/services/chat");
+  it("saves a proposal as it's made, so it can be confirmed before the reply finishes", async () => {
+    const { replyAndSave } = await import("@/server/ai/turn");
+    const { resolveProposal } = await import("@/server/services/chat");
     const user = { id: "it-maya", name: "Maya", email: "maya@example.com", image: null, role: "member" as const, isDemo: false };
 
     script = [
@@ -85,34 +87,38 @@ describe.skipIf(!url)("Ask the Librarian (integration, fake model)", () => {
       () => ({ text: "All copies of **Project Hail Mary** are out. Tap Place hold to join the queue." }),
     ];
 
-    const events = [];
-    const agent = runLibrarian(user, [], "Hold the next free copy of Project Hail Mary for me");
-    let step = await agent.next();
-    while (!step.done) {
-      events.push(step.value);
-      step = await agent.next();
+    const events: ChatStreamEvent[] = [];
+    let messageId = "";
+    let confirmed: Awaited<ReturnType<typeof resolveProposal>> | undefined;
+    for await (const event of replyAndSave(user, crypto.randomUUID(), [], "Hold the next free copy of Project Hail Mary for me")) {
+      events.push(event);
+      if (event.type === "thread") messageId = event.messageId;
+      if (event.type === "proposal") {
+        // Nothing has happened yet; the member presses the card while the reply is still coming.
+        expect(await db.db.select().from(schema.holds)).toHaveLength(0);
+        confirmed = await resolveProposal(user, messageId, event.proposal.id, "confirm");
+      }
     }
-    const result = step.value;
 
     expect(events.filter((e) => e.type === "status").length).toBe(2);
-    const proposal = events.find((e) => e.type === "proposal");
-    expect(proposal && proposal.type === "proposal" && proposal.proposal.kind).toBe("place_hold");
-    expect(result.content.text).toContain("Project Hail Mary");
-    expect(result.books.map((b) => b.title)).toEqual(["Project Hail Mary"]);
-
-    // Nothing happened yet.
-    expect(await db.db.select().from(schema.holds)).toHaveLength(0);
-
-    const messageId = await saveMessage(user.id, crypto.randomUUID(), "assistant", result.content);
-    const confirmed = await resolveProposal(user, messageId, result.content.proposals![0]!.id, "confirm");
-    expect(confirmed.status).toBe("confirmed");
-    expect(confirmed.resultMessage).toMatch(/first in line/);
+    expect(events.at(-1)?.type).toBe("done");
+    expect(confirmed?.status).toBe("confirmed");
+    expect(confirmed?.resultMessage).toMatch(/first in line/);
     expect(await db.db.select().from(schema.holds)).toHaveLength(1);
+
+    // The finished reply is saved without undoing the confirmation.
+    const [row] = await db.db.select().from(schema.aiMessages).where(eq(schema.aiMessages.id, messageId));
+    expect(row?.content.text).toContain("Project Hail Mary");
+    expect(row?.content.bookIds).toHaveLength(1);
+    expect(row?.content.proposals?.map((p) => p.status)).toEqual(["confirmed"]);
 
     // Confirming twice is a no-op.
-    const again = await resolveProposal(user, messageId, confirmed.id, "confirm");
+    const again = await resolveProposal(user, messageId, confirmed!.id, "confirm");
     expect(again.status).toBe("confirmed");
     expect(await db.db.select().from(schema.holds)).toHaveLength(1);
+
+    // An id that was never saved is a clean "not available", not a database error.
+    await expect(resolveProposal(user, "assistant-1-2", confirmed!.id, "confirm")).rejects.toThrow(/isn't available/);
   });
 
   it("refuses to propose borrowing when no copy is free", async () => {

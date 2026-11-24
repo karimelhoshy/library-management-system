@@ -131,7 +131,7 @@ export function ChatProvider({ aiEnabled, children }: { aiEnabled: boolean; chil
         text,
         createdAt: new Date().toISOString(),
       };
-      const assistantId = tempId("assistant");
+      let assistantId = tempId("assistant");
       const assistant: ChatMessage = {
         id: assistantId,
         role: "assistant",
@@ -142,19 +142,21 @@ export function ChatProvider({ aiEnabled, children }: { aiEnabled: boolean; chil
       };
       setMessages((current) => [...current, userMessage, assistant]);
 
-      const update = (fn: (message: ChatMessage) => ChatMessage) =>
-        setMessages((current) => current.map((m) => (m.id === assistantId ? fn(m) : m)));
+      const update = (fn: (message: ChatMessage) => ChatMessage) => {
+        const id = assistantId;
+        setMessages((current) => current.map((m) => (m.id === id ? fn(m) : m)));
+      };
 
       try {
-        let finalId = assistantId;
         for await (const event of streamChat(threadId, text)) {
-          if (event.type === "thread") setThreadId(event.threadId);
-          else if (event.type === "done") finalId = event.messageId;
-          else update((m) => applyStreamEvent(m, event));
+          if (event.type === "thread") {
+            setThreadId(event.threadId);
+            // Take the saved reply's id now, so its confirm cards work before the reply ends.
+            update((m) => ({ ...m, id: event.messageId }));
+            assistantId = event.messageId;
+          } else update((m) => applyStreamEvent(m, event));
         }
-        setMessages((current) =>
-          current.map((m) => (m.id === assistantId ? { ...m, id: finalId, pending: false, status: undefined } : m)),
-        );
+        update((m) => ({ ...m, pending: false, status: undefined }));
       } catch (error) {
         update((m) => ({
           ...m,

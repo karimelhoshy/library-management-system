@@ -1,4 +1,5 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { ChatMessage, MiniBook } from "@/lib/chat-types";
 import { DomainError, type Actor } from "@/server/auth/permissions";
 import { db } from "@/server/db";
@@ -36,6 +37,27 @@ export async function saveMessage(
 ): Promise<string> {
   const [row] = await db.insert(aiMessages).values({ userId, threadId, role, content }).returning({ id: aiMessages.id });
   return row!.id;
+}
+
+/**
+ * Stores a proposal on its reply the moment the agent makes it, so the member can confirm
+ * the card while the rest of the reply is still streaming.
+ */
+export async function addProposal(messageId: string, proposal: AiProposal) {
+  await db
+    .update(aiMessages)
+    .set({
+      content: sql`jsonb_set(${aiMessages.content}, '{proposals}', coalesce(${aiMessages.content}->'proposals', '[]') || ${JSON.stringify([proposal])}::jsonb)`,
+    })
+    .where(eq(aiMessages.id, messageId));
+}
+
+/** Saves a finished reply's text and books. Proposals stay as they are: one may already be confirmed. */
+export async function finishMessage(messageId: string, reply: Omit<AiMessageContent, "proposals">) {
+  await db
+    .update(aiMessages)
+    .set({ content: sql`${aiMessages.content} || ${JSON.stringify(reply)}::jsonb` })
+    .where(eq(aiMessages.id, messageId));
 }
 
 /** A book as a small card in the chat. */
@@ -82,11 +104,13 @@ export async function resolveProposal(
   proposalId: string,
   decision: "confirm" | "dismiss",
 ): Promise<AiProposal> {
+  const gone = new DomainError("That conversation isn't available any more.", 404);
+  if (!z.string().uuid().safeParse(messageId).success) throw gone;
   const [message] = await db
     .select()
     .from(aiMessages)
     .where(and(eq(aiMessages.id, messageId), eq(aiMessages.userId, actor.id)));
-  if (!message) throw new DomainError("That conversation isn't available any more.", 404);
+  if (!message) throw gone;
   const proposal = message.content.proposals?.find((p) => p.id === proposalId);
   if (!proposal) throw new DomainError("That offer isn't available any more.", 404);
   if (proposal.status !== "pending") return proposal;
@@ -131,10 +155,15 @@ export async function resolveProposal(
     }
   }
 
-  const proposals = (message.content.proposals ?? []).map((p) => (p.id === proposalId ? updated : p));
+  // Replace only this proposal, in place, so nothing the streaming reply saved meanwhile is lost.
   await db
     .update(aiMessages)
-    .set({ content: { ...message.content, proposals } })
+    .set({
+      content: sql`jsonb_set(${aiMessages.content}, '{proposals}', (
+        select jsonb_agg(case when p->>'id' = ${proposalId} then ${JSON.stringify(updated)}::jsonb else p end order by i)
+        from jsonb_array_elements(${aiMessages.content}->'proposals') with ordinality as t(p, i)
+      ))`,
+    })
     .where(eq(aiMessages.id, messageId));
   return updated;
 }
@@ -142,7 +171,10 @@ export async function resolveProposal(
 export async function listThreadForApi(userId: string) {
   const threadId = await latestThreadId(userId);
   if (!threadId) return { threadId: null, messages: [] as ChatMessage[] };
-  const rows = await loadThread(userId, threadId);
+  // A reply that never finished (the server stopped mid-turn) has nothing to show.
+  const rows = (await loadThread(userId, threadId)).filter(
+    (row) => row.role === "user" || row.content.text || row.content.proposals?.length,
+  );
   return { threadId, messages: await toChatMessages(userId, rows) };
 }
 

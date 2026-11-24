@@ -35,12 +35,13 @@ export type ChatMessage = {
 };
 
 export type ChatStreamEvent =
-  | { type: "thread"; threadId: string; userMessageId: string }
+  /** First event: the thread, and the id the reply is saved under (its cards confirm against it). */
+  | { type: "thread"; threadId: string; messageId: string }
   | { type: "status"; text: string }
   | { type: "text"; delta: string }
   | { type: "books"; books: MiniBook[] }
   | { type: "proposal"; proposal: ChatProposal }
-  | { type: "done"; messageId: string }
+  | { type: "done" }
   | { type: "error"; message: string };
 
 export type ChatThreadResponse = {

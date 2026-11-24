@@ -31,6 +31,7 @@ One line each: what we chose and why.
 - **Dashboard chart is a single series (loans per day)** with a hover tooltip and a screen-reader table; no legend needed for one series.
 - **Chat streams newline-delimited JSON** (`text`, `status`, `books`, `proposal`, `done`, `error` events) from a route handler; no extra SDK needed on the client.
 - **Write tools return proposals, stored on the assistant message.** Confirming calls the same services as the UI (`placeHold`, `borrowBook`, `renewLoan`), so every rule and permission applies; resolving twice is a no-op.
+- **A reply's row is created before the model starts, and each proposal is saved the moment it's made**, so a card can be confirmed while the reply is still streaming. Later writes touch only their own part of the JSON (`||` for the text, an in-place swap for one proposal), so the finished reply never overwrites a confirmation.
 - **Mini book cards = books the agent looked up that its reply names** (plus any with a proposal), capped at 4.
 - **Model history replays text only**; earlier proposals are summarised inline (e.g. "[Offered to place hold "Circe": confirmed]").
 - **Gemini thinking level LOW for chat** to keep replies fast; falls back to the model default if a model rejects it.
