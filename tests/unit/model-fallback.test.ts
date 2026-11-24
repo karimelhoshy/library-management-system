@@ -40,10 +40,25 @@ describe("withModelFallback", () => {
     expect(call).toHaveBeenCalledTimes(1);
   });
 
-  it("reports the last failure when every model is down", async () => {
-    const call = async () => {
+  it("pauses and goes round again when every model is busy", async () => {
+    let calls = 0;
+    const result = await withModelFallback(
+      async (model) => {
+        calls++;
+        if (calls <= 2) throw new ApiError({ message: "busy", status: 503 });
+        return model;
+      },
+      { models: ["a", "b"], pauseMs: 1 },
+    );
+    expect(result).toEqual({ value: "a", model: "a" });
+    expect(calls).toBe(3);
+  });
+
+  it("reports the last failure when every model stays down", async () => {
+    const call = vi.fn(async () => {
       throw new ApiError({ message: "quota", status: 429 });
-    };
-    await expect(withModelFallback(call, { models: ["a", "b"] })).rejects.toMatchObject({ status: 429 });
+    });
+    await expect(withModelFallback(call, { models: ["a", "b"], rounds: 2, pauseMs: 1 })).rejects.toMatchObject({ status: 429 });
+    expect(call).toHaveBeenCalledTimes(4);
   });
 });

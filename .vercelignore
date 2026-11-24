@@ -1,0 +1,6 @@
+# Never upload local secrets or local-only output; Vercel gets settings from its own environment.
+.env*
+!.env.example
+recordings
+test-results
+design

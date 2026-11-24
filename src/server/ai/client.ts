@@ -26,25 +26,40 @@ function isRetryable(error: unknown): boolean {
  * Runs a Gemini call on each model in turn until one answers. Free-tier models are sometimes
  * overloaded or silent, and each has its own daily quota, so this keeps the AI features up when
  * one model isn't. A model that hasn't answered within `timeoutMs` is abandoned: `call` must
- * pass the signal to the SDK and resolve once the first output has arrived.
+ * pass the signal to the SDK and resolve once the first output has arrived. When every model
+ * is busy, it pauses and goes round again (demand spikes usually pass within seconds), up to
+ * `rounds` times and never starting a new round after 45 seconds.
  */
 export async function withModelFallback<T>(
   call: (model: string, signal: AbortSignal) => Promise<T>,
-  { models = geminiModels(), timeoutMs = 20_000 }: { models?: string[]; timeoutMs?: number } = {},
+  {
+    models = geminiModels(),
+    timeoutMs = 20_000,
+    rounds = 3,
+    pauseMs = 2_500,
+  }: { models?: string[]; timeoutMs?: number; rounds?: number; pauseMs?: number } = {},
 ): Promise<{ value: T; model: string }> {
+  const started = Date.now();
   let lastError: unknown;
-  for (const model of models) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return { value: await call(model, controller.signal), model };
-    } catch (error) {
-      const timedOut = controller.signal.aborted;
-      if (!timedOut && !isRetryable(error)) throw error;
-      lastError = timedOut ? new ApiError({ message: `${model} didn't answer in time`, status: 504 }) : error;
-      console.warn(`[ai] ${model} unavailable (${timedOut ? "timeout" : (error as ApiError).status}), trying the next model`);
-    } finally {
-      clearTimeout(timer);
+  for (let round = 1; round <= rounds; round++) {
+    if (round > 1) {
+      if (Date.now() - started > 45_000) break;
+      console.warn(`[ai] every model is busy, trying again in ${(pauseMs * (round - 1)) / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, pauseMs * (round - 1)));
+    }
+    for (const model of models) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return { value: await call(model, controller.signal), model };
+      } catch (error) {
+        const timedOut = controller.signal.aborted;
+        if (!timedOut && !isRetryable(error)) throw error;
+        lastError = timedOut ? new ApiError({ message: `${model} didn't answer in time`, status: 504 }) : error;
+        console.warn(`[ai] ${model} unavailable (${timedOut ? "timeout" : (error as ApiError).status})`);
+      } finally {
+        clearTimeout(timer);
+      }
     }
   }
   throw lastError;

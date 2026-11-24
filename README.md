@@ -112,7 +112,11 @@ Set `DEMO_MODE=true` for the one-click demo accounts, and `GEMINI_API_KEY` (free
 
 - **The AI can't change data on its own.** Borrow, hold and renew come back as a card, and nothing happens until the member presses it. It costs one tap. In return the model never acts unseen, and confirming runs the same services as the regular buttons, so the agent can't do anything the UI couldn't.
 - **Availability is computed, never stored.** It's copies minus open loans minus copies set aside for holds. Each borrow, return or hold locks the book's row, so two people can't take the last copy. That's simple and correct at library scale; a very busy catalog would want an inventory table with optimistic versioning.
-- **The AI is optional.** Without a key, the app works and the AI surfaces explain they're off. With one, Gemini's rate limits and outages become a friendly "try again in a minute". Each user also gets an hourly allowance (40 chat messages, 10 photo scans, 120 vibe searches), counted in Postgres so it holds across serverless instances.
+- **The AI is a guest, not a dependency.** Without a key, the app works and the AI surfaces explain they're off. With a key:
+  - Every Gemini call falls back across models (3.8, then 3.7, then 3.6 Flash). A model that's overloaded, out of quota or silent for 20 seconds is skipped.
+  - Each user gets an hourly allowance (40 chat messages, 10 photo scans, 120 vibe searches).
+  - The whole library shares a daily budget, which the librarian dashboard shows.
+  - Both limits are counted in Postgres, so they hold across serverless instances.
 - **Demo mode is a shared sandbox.** Anyone can be Ada, so demo staff can only see and change demo accounts, never real Google users.
 - **JWT sessions, with the role read fresh on each request.** The one-click demo sign-in needs JWT sessions. I still read the role from the database on every request rather than trusting the token, so a role change applies on the next click.
 - **Not built:** fines, multiple branches, per-copy barcodes (copies are a count) and CSV import. Next I'd add an eval set for the agent (about 50 scripted requests, scored on tool choice), per-copy tracking, push notifications for ready holds, and error monitoring.
