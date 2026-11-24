@@ -17,7 +17,8 @@ export async function scanShelfAction(base64: string, mimeType: string): Promise
   return withUser(async (user) => {
     assertCan(user, "book:write");
     if (!isAiEnabled()) throw new DomainError("Shelf-photo import needs an AI key on this library.", 503);
-    if (base64.length > 5_500_000) throw new DomainError("That photo is too large. Try a smaller one.", 413);
+    // Below the 4 MB server-action body limit, so the person gets this message, not a framework error.
+    if (base64.length > 3_500_000) throw new DomainError("That photo is too large. Try a smaller one.", 413);
     await consumeAiQuota(user.id, "vision");
     let detected;
     try {

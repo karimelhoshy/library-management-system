@@ -106,66 +106,69 @@ export async function resolveProposal(
 ): Promise<AiProposal> {
   const gone = new DomainError("That conversation isn't available any more.", 404);
   if (!z.string().uuid().safeParse(messageId).success) throw gone;
-  const [message] = await db
-    .select()
-    .from(aiMessages)
-    .where(and(eq(aiMessages.id, messageId), eq(aiMessages.userId, actor.id)));
-  if (!message) throw gone;
-  const proposal = message.content.proposals?.find((p) => p.id === proposalId);
-  if (!proposal) throw new DomainError("That offer isn't available any more.", 404);
-  if (proposal.status !== "pending") return proposal;
 
-  let updated: AiProposal;
-  if (decision === "dismiss") {
-    updated = { ...proposal, status: "dismissed", resultMessage: "No problem, I left it." };
-  } else {
-    try {
-      switch (proposal.kind) {
-        case "place_hold": {
-          const hold = await placeHold(actor, proposal.bookId);
-          updated = {
-            ...proposal,
-            status: "confirmed",
-            resultMessage:
-              hold.position === 1
-                ? "Hold placed. You're first in line, and we'll email you when it's ready."
-                : `Hold placed. You're #${hold.position} in line.`,
-          };
-          break;
-        }
-        case "borrow_book": {
-          const loan = await borrowBook(actor, { bookId: proposal.bookId });
-          updated = {
-            ...proposal,
-            status: "confirmed",
-            resultMessage: `Borrowed! It's due back ${formatShortDate(loan.dueAt)}.`,
-          };
-          break;
-        }
-        case "renew_loan": {
-          if (!proposal.loanId) throw new DomainError("Missing loan.");
-          const renewed = await renewLoan(actor, proposal.loanId);
-          updated = { ...proposal, status: "confirmed", resultMessage: `Renewed. Now due ${formatShortDate(renewed.dueAt)}.` };
-          break;
-        }
+  // The message row stays locked until the outcome is saved, so a second confirm (another tab,
+  // a double tap) waits, then sees the result instead of running the action again.
+  return db.transaction(async (tx) => {
+    const [message] = await tx
+      .select()
+      .from(aiMessages)
+      .where(and(eq(aiMessages.id, messageId), eq(aiMessages.userId, actor.id)))
+      .for("update");
+    if (!message) throw gone;
+    const proposal = message.content.proposals?.find((p) => p.id === proposalId);
+    if (!proposal) throw new DomainError("That offer isn't available any more.", 404);
+    if (proposal.status !== "pending") return proposal;
+
+    const updated = decision === "dismiss" ? dismissed(proposal) : await runProposal(actor, proposal);
+
+    // Replace only this proposal, in place, so nothing the streaming reply saved meanwhile is lost.
+    await tx
+      .update(aiMessages)
+      .set({
+        content: sql`jsonb_set(${aiMessages.content}, '{proposals}', (
+          select jsonb_agg(case when p->>'id' = ${proposalId} then ${JSON.stringify(updated)}::jsonb else p end order by i)
+          from jsonb_array_elements(${aiMessages.content}->'proposals') with ordinality as t(p, i)
+        ))`,
+      })
+      .where(eq(aiMessages.id, messageId));
+    return updated;
+  });
+}
+
+function dismissed(proposal: AiProposal): AiProposal {
+  return { ...proposal, status: "dismissed", resultMessage: "No problem, I left it." };
+}
+
+/** Runs the confirmed action through the same services as the regular UI. */
+async function runProposal(actor: Actor, proposal: AiProposal): Promise<AiProposal> {
+  try {
+    switch (proposal.kind) {
+      case "place_hold": {
+        const hold = await placeHold(actor, proposal.bookId);
+        return {
+          ...proposal,
+          status: "confirmed",
+          resultMessage:
+            hold.position === 1
+              ? "Hold placed. You're first in line, and we'll email you when it's ready."
+              : `Hold placed. You're #${hold.position} in line.`,
+        };
       }
-    } catch (error) {
-      if (!(error instanceof DomainError) && !(error instanceof Error && error.name === "ForbiddenError")) throw error;
-      updated = { ...proposal, status: "failed", resultMessage: error.message };
+      case "borrow_book": {
+        const loan = await borrowBook(actor, { bookId: proposal.bookId });
+        return { ...proposal, status: "confirmed", resultMessage: `Borrowed! It's due back ${formatShortDate(loan.dueAt)}.` };
+      }
+      case "renew_loan": {
+        if (!proposal.loanId) throw new DomainError("Missing loan.");
+        const renewed = await renewLoan(actor, proposal.loanId);
+        return { ...proposal, status: "confirmed", resultMessage: `Renewed. Now due ${formatShortDate(renewed.dueAt)}.` };
+      }
     }
+  } catch (error) {
+    if (!(error instanceof DomainError) && !(error instanceof Error && error.name === "ForbiddenError")) throw error;
+    return { ...proposal, status: "failed", resultMessage: error.message };
   }
-
-  // Replace only this proposal, in place, so nothing the streaming reply saved meanwhile is lost.
-  await db
-    .update(aiMessages)
-    .set({
-      content: sql`jsonb_set(${aiMessages.content}, '{proposals}', (
-        select jsonb_agg(case when p->>'id' = ${proposalId} then ${JSON.stringify(updated)}::jsonb else p end order by i)
-        from jsonb_array_elements(${aiMessages.content}->'proposals') with ordinality as t(p, i)
-      ))`,
-    })
-    .where(eq(aiMessages.id, messageId));
-  return updated;
 }
 
 export async function listThreadForApi(userId: string) {

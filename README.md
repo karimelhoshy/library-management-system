@@ -98,9 +98,9 @@ Set `DEMO_MODE=true` for the one-click demo accounts, and `GEMINI_API_KEY` (free
 
 ## How I know it works
 
-- **67 Vitest tests:** unit tests for the lending rules, the permission matrix and ISBN parsing, plus integration tests against a real Postgres:
+- **70 Vitest tests:** unit tests for the lending rules, the permission matrix and ISBN parsing, plus integration tests against a real Postgres:
   - Two people borrowing the last copy at the same moment: exactly one wins.
-  - A return hands the copy to the first person in the hold queue.
+  - A return hands the copy to the first person in the hold queue, and undoing a borrow gives a ready hold back.
   - Members can't act for other people.
   - A loan renews once, then refuses.
   - The AI agent runs end to end with a scripted fake Gemini, and a member confirms its card while the reply is still streaming.
@@ -113,7 +113,7 @@ Set `DEMO_MODE=true` for the one-click demo accounts, and `GEMINI_API_KEY` (free
 - **The AI can't change data on its own.** Borrow, hold and renew come back as a card, and nothing happens until the member presses it. It costs one tap. In return the model never acts unseen, and confirming runs the same services as the regular buttons, so the agent can't do anything the UI couldn't.
 - **Availability is computed, never stored.** It's copies minus open loans minus copies set aside for holds. Each borrow, return or hold locks the book's row, so two people can't take the last copy. That's simple and correct at library scale; a very busy catalog would want an inventory table with optimistic versioning.
 - **The AI is a guest, not a dependency.** Without a key, the app works and the AI surfaces explain they're off. With a key:
-  - Every Gemini call falls back across models (3.8, then 3.7, then 3.6 Flash). A model that's overloaded, out of quota or silent for 20 seconds is skipped.
+  - Chat and shelf-photo calls fall back across models (3.8, then 3.7, then 3.6 Flash). A model that's overloaded, out of quota, unavailable or silent for 20 seconds is skipped.
   - Each user gets an hourly allowance (40 chat messages, 10 photo scans, 120 vibe searches).
   - The whole library shares a daily budget, which the librarian dashboard shows.
   - Both limits are counted in Postgres, so they hold across serverless instances.

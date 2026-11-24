@@ -6,7 +6,7 @@ import { db } from "@/server/db";
 import { books, loans, type Book } from "@/server/db/schema";
 import { isAiEnabled } from "@/server/env";
 import { logActivity } from "./activity";
-import { promoteHolds, type PromotedHold } from "./holds";
+import { countCopies, promoteHolds, type PromotedHold } from "./holds";
 import { notifyHoldsReadySafely } from "./notifications";
 
 export async function getBook(id: string): Promise<Book | null> {
@@ -56,12 +56,13 @@ export async function updateBook(actor: Actor, id: string, input: BookInput): Pr
     const [current] = await tx.select().from(books).where(eq(books.id, id)).for("update");
     if (!current) throw new DomainError("Book not found.", 404);
 
-    const [onLoan] = await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(loans)
-      .where(and(eq(loans.bookId, id), isNull(loans.returnedAt)));
-    if (data.totalCopies < (onLoan?.n ?? 0)) {
-      throw new DomainError(`${onLoan?.n} copies are on loan, so total copies can't go below that.`);
+    // Copies on loan or set aside for a ready hold are promised to someone.
+    const counts = await countCopies(tx, id, current.totalCopies);
+    const promised = counts.openLoans + counts.readyHolds;
+    if (data.totalCopies < promised) {
+      throw new DomainError(
+        `${promised} ${promised === 1 ? "copy is" : "copies are"} on loan or set aside for holds, so total copies can't go below that.`,
+      );
     }
 
     const [updated] = await tx.update(books).set(data).where(eq(books.id, id)).returning();

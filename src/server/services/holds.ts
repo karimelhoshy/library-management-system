@@ -152,12 +152,12 @@ export async function cancelHold(
 
   const result = await db.transaction(async (tx) => {
     const book = await lockBook(tx, hold.bookId);
-    const [updated] = await tx
-      .update(holds)
-      .set({ status: "cancelled", readyUntil: null })
-      .where(and(eq(holds.id, holdId), inArray(holds.status, ["waiting", "ready"])))
-      .returning({ id: holds.id });
-    if (!updated) throw new DomainError("This hold is no longer active.");
+    // Read the status again under the book lock: the hold may have become ready meanwhile.
+    const [current] = await tx.select({ status: holds.status }).from(holds).where(eq(holds.id, holdId));
+    if (current?.status !== "waiting" && current?.status !== "ready") {
+      throw new DomainError("This hold is no longer active.");
+    }
+    await tx.update(holds).set({ status: "cancelled", readyUntil: null }).where(eq(holds.id, holdId));
 
     await logActivity(tx, {
       actorId: actor.id,
@@ -168,21 +168,24 @@ export async function cancelHold(
     });
 
     // Cancelling a ready hold frees its copy for the next person in line.
-    const promoted = hold.status === "ready" ? await promoteHolds(tx, hold.bookId) : [];
+    const promoted = current.status === "ready" ? await promoteHolds(tx, hold.bookId) : [];
     return { title: book.title, promoted };
   });
   await notifyHoldsReadySafely(result.promoted);
   return result;
 }
 
-/** Marks a ready hold as fulfilled when its member borrows the book (inside the borrow tx). */
-export async function fulfillReadyHold(tx: Transaction, bookId: string, userId: string): Promise<boolean> {
-  const updated = await tx
+/**
+ * Marks a ready hold as fulfilled when its member borrows the book (inside the borrow tx).
+ * Returns the hold's id, so an Undo can give it back.
+ */
+export async function fulfillReadyHold(tx: Transaction, bookId: string, userId: string): Promise<string | null> {
+  const [updated] = await tx
     .update(holds)
     .set({ status: "fulfilled" })
     .where(and(eq(holds.bookId, bookId), eq(holds.userId, userId), eq(holds.status, "ready")))
     .returning({ id: holds.id });
-  return updated.length > 0;
+  return updated?.id ?? null;
 }
 
 /** Daily job: ready holds past their pickup window expire, and the copy passes on. */

@@ -134,6 +134,32 @@ describe.skipIf(!url)("loans and holds (integration)", () => {
     await expect(mod.books.deleteBook(librarian, book.id)).resolves.toEqual({ title: "Test Book" });
   });
 
+  it("undoing a borrow that used a ready hold gives the hold back", async () => {
+    const book = await makeBook(1);
+    const loan = await mod.loans.borrowBook(member("it-ana"), { bookId: book.id });
+    await mod.holds.placeHold(member("it-ben"), book.id);
+    await mod.holds.placeHold(member("it-cy"), book.id);
+    await mod.loans.returnLoan(member("it-ana"), loan.loanId); // Ben's hold is now ready
+
+    const benLoan = await mod.loans.borrowBook(member("it-ben"), { bookId: book.id });
+    await mod.loans.undoBorrow(member("it-ben"), benLoan.loanId);
+
+    // The copy is still Ben's, not the next person's.
+    expect((await mod.holds.listMyHolds("it-ben")).map((h) => h.status)).toEqual(["ready"]);
+    await expect(mod.loans.borrowBook(member("it-cy"), { bookId: book.id })).rejects.toThrow(/hold/);
+    await expect(mod.loans.borrowBook(member("it-ben"), { bookId: book.id })).resolves.toBeTruthy();
+  });
+
+  it("won't cut copies below those on loan or set aside for a hold", async () => {
+    const book = await makeBook(2);
+    const loan = await mod.loans.borrowBook(member("it-ana"), { bookId: book.id });
+    await mod.loans.borrowBook(member("it-ben"), { bookId: book.id });
+    await mod.holds.placeHold(member("it-cy"), book.id);
+    await mod.loans.returnLoan(member("it-ana"), loan.loanId); // set aside for Cy
+    const edit = { title: "Test Book", authors: ["A. Writer"], totalCopies: 1 };
+    await expect(mod.books.updateBook(librarian, book.id, edit)).rejects.toThrow(/set aside for holds/);
+  });
+
   it("undo borrow removes a fresh loan and frees the copy", async () => {
     const book = await makeBook(1);
     const loan = await mod.loans.borrowBook(member("it-ana"), { bookId: book.id });

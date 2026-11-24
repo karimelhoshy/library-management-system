@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { parseCatalogQuery } from "@/lib/validation";
 import { requireUser } from "@/server/auth/session";
 import { isAiEnabled } from "@/server/env";
-import { getCatalogFacets, searchCatalog, vibeSearch } from "@/server/services/catalog";
+import { CATALOG_PAGE_SIZE, getCatalogFacets, searchCatalog, vibeSearch } from "@/server/services/catalog";
 import { listMyHolds } from "@/server/services/holds";
 
 export default async function CatalogPage({ searchParams }: PageProps<"/">) {
   const user = await requireUser();
-  const query = parseCatalogQuery(await searchParams);
+  const params = await searchParams;
+  const query = parseCatalogQuery(params);
   const aiEnabled = isAiEnabled();
   const [result, facets, holds] = await Promise.all([
     query.vibe && query.q ? vibeSearch(query, user.id) : searchCatalog(query, user.id),
@@ -27,6 +28,13 @@ export default async function CatalogPage({ searchParams }: PageProps<"/">) {
       : query.q
         ? `${result.total} ${result.total === 1 ? "result" : "results"} for “${query.q}”`
         : `${result.total} ${result.total === 1 ? "book" : "books"}`;
+
+  // "Show more" keeps every filter in the URL and asks for another page of results.
+  const remaining = result.total - result.items.length;
+  const more = new URLSearchParams(
+    Object.entries(params).flatMap(([key, value]) => (typeof value === "string" ? [[key, value]] : [])),
+  );
+  more.set("show", String(result.items.length + CATALOG_PAGE_SIZE));
 
   return (
     <div className="mx-auto max-w-[1100px] px-4 py-5 md:px-8 md:py-8">
@@ -44,13 +52,24 @@ export default async function CatalogPage({ searchParams }: PageProps<"/">) {
           </p>
         )}
         {result.items.length > 0 ? (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-            {result.items.map((book, index) => (
-              <li key={book.id} className="contents">
-                <BookCard book={book} priority={index < 6} />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+              {result.items.map((book, index) => (
+                <li key={book.id} className="contents">
+                  <BookCard book={book} priority={index < 6} />
+                </li>
+              ))}
+            </ul>
+            {remaining > 0 && (
+              <div className="mt-6 flex justify-center">
+                <Button variant="outline" asChild>
+                  <Link href={`/?${more.toString()}`} scroll={false}>
+                    Show more ({remaining} more)
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="rounded-2xl border border-dashed border-input bg-surface px-6 py-12 text-center">
             <SearchX className="mx-auto size-8 text-ink-3" aria-hidden />

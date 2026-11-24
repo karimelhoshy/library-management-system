@@ -125,13 +125,14 @@ export type CatalogResult = {
   notice?: string;
 };
 
-const PAGE_SIZE = 60;
+/** Results per "page" of the catalog; "Show more" adds another. */
+export const CATALOG_PAGE_SIZE = 60;
 
 /** Keyword search: one box over title, author, ISBN and tags, typo-tolerant via pg_trgm. */
 export async function searchCatalog(
   query: CatalogQuery,
   viewerId: string,
-  limit = PAGE_SIZE,
+  limit = query.show ?? CATALOG_PAGE_SIZE,
 ): Promise<CatalogResult> {
   const q = query.q.trim();
   const conditions = filterConditions(query);

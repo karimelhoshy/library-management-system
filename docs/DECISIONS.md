@@ -1,6 +1,6 @@
 # Decisions
 
-One line each: what we chose and why.
+One line each: what I chose and why.
 
 - **Next.js 16.4 with Cache Components off.** Almost every page depends on the signed-in user, so plain dynamic rendering is simpler and just as fast; `cacheComponents` and `partialPrefetching` are disabled.
 - **`experimental.authInterrupts` on.** Lets pages call `forbidden()` and render a real 403 page.
@@ -27,10 +27,13 @@ One line each: what we chose and why.
 - **pnpm 12 + Node 24.** `pnpm-workspace.yaml` allow-lists build scripts (only esbuild needs one).
 - **Loading skeletons only on catalog, book and loans routes.** A route-wide `loading.tsx` streams a 200 before `forbidden()` can run; staff pages render fully on the server so they return a true 403.
 - **Demo staff are scoped to demo accounts.** In the public demo anyone can be Ada/Leo, so user lists, the loans desk, activity and outbox hide real (Google) accounts, and role changes/lending to them are refused.
-- **AI quota check-and-record runs under a per-user advisory lock** (`pg_advisory_xact_lock`) so parallel requests can't exceed the limit.
+- **AI quota check-and-record runs under one advisory lock** (`pg_advisory_xact_lock`), because the daily budget is shared; parallel requests can't exceed either limit.
 - **Dashboard chart is a single series (loans per day)** with a hover tooltip and a screen-reader table; no legend needed for one series.
 - **Chat streams newline-delimited JSON** (`text`, `status`, `books`, `proposal`, `done`, `error` events) from a route handler; no extra SDK needed on the client.
 - **Write tools return proposals, stored on the assistant message.** Confirming calls the same services as the UI (`placeHold`, `borrowBook`, `renewLoan`), so every rule and permission applies; resolving twice is a no-op.
+- **Confirming a card locks its message row until the outcome is saved**, so a double tap or a second tab waits and then sees the result instead of acting twice.
+- **A borrow records which ready hold it used**, so Undo gives the member their reserved copy back instead of passing it to the next person.
+- **The catalog shows 60 books at a time; "Show more" raises `?show=` in the URL**, so a longer list stays shareable like every other filter.
 - **A reply's row is created before the model starts, and each proposal is saved the moment it's made**, so a card can be confirmed while the reply is still streaming. Later writes touch only their own part of the JSON (`||` for the text, an in-place swap for one proposal), so the finished reply never overwrites a confirmation.
 - **Mini book cards = books the agent looked up that its reply names** (plus any with a proposal), capped at 4.
 - **Model history replays text only**; earlier proposals are summarised inline (e.g. "[Offered to place hold "Circe": confirmed]").

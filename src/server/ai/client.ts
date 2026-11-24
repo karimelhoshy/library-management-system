@@ -17,9 +17,9 @@ export class AiUnavailableError extends Error {
   }
 }
 
-/** Overloaded, rate-limited or out of daily quota: another model may still answer. */
+/** Overloaded, out of quota, or not available to this key (404): another model may still answer. */
 function isRetryable(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 429 || error.status >= 500);
+  return error instanceof ApiError && (error.status === 404 || error.status === 429 || error.status >= 500);
 }
 
 /**

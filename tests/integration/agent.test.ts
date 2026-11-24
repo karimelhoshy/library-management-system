@@ -121,6 +121,21 @@ describe.skipIf(!url)("Ask the Librarian (integration, fake model)", () => {
     await expect(resolveProposal(user, "assistant-1-2", confirmed!.id, "confirm")).rejects.toThrow(/isn't available/);
   });
 
+  it("confirming the same card twice at once acts only once", async () => {
+    const { saveMessage, resolveProposal } = await import("@/server/services/chat");
+    const user = { id: "it-maya", name: "Maya", email: "maya@example.com", image: null, role: "member" as const, isDemo: false };
+    const [book] = await db.db.insert(schema.books).values({ title: "Twice Told", authors: ["T. Writer"], totalCopies: 2 }).returning();
+    const proposal = { id: "p-twice", kind: "borrow_book" as const, bookId: book!.id, title: "Borrow", detail: "", status: "pending" as const };
+    const messageId = await saveMessage(user.id, crypto.randomUUID(), "assistant", { text: "", proposals: [proposal] });
+
+    const results = await Promise.all([
+      resolveProposal(user, messageId, proposal.id, "confirm"),
+      resolveProposal(user, messageId, proposal.id, "confirm"),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["confirmed", "confirmed"]);
+    expect(await db.db.select().from(schema.loans).where(eq(schema.loans.bookId, book!.id))).toHaveLength(1);
+  });
+
   it("stops every AI request once the library's daily budget is used", async () => {
     const { consumeAiQuota } = await import("@/server/ai/rate-limit");
     await db.db.delete(schema.aiUsage);

@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "4mb" },
   },
   devIndicators: false,
-  images: {
-    remotePatterns: [{ protocol: "https", hostname: "covers.openlibrary.org" }],
-  },
   turbopack: {
     rules: {
       "*.css": {

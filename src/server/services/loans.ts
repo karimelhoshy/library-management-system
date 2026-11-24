@@ -1,14 +1,14 @@
-import { and, asc, desc, eq, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UNDO_WINDOW_SECONDS } from "@/lib/config";
 import { assertCan, DomainError, type Actor } from "@/server/auth/permissions";
 import { assertCanActFor, isDemoScoped } from "@/server/auth/scope";
 import { db } from "@/server/db";
-import { books, holds, loans, users } from "@/server/db/schema";
+import { activityLog, books, holds, loans, users } from "@/server/db/schema";
 import { logActivity } from "./activity";
 import { countCopies, fulfillReadyHold, lockBook, promoteHolds, type PromotedHold } from "./holds";
 import { notifyHoldsReadySafely } from "./notifications";
-import { availableCopies, checkRenewal, dueDateFrom } from "./rules";
+import { availableCopies, canBorrowNow, checkRenewal, dueDateFrom } from "./rules";
 
 async function memberName(memberId: string): Promise<string | null> {
   const [member] = await db.select({ name: users.name }).from(users).where(eq(users.id, memberId));
@@ -44,12 +44,10 @@ export async function borrowBook(
     }
 
     // A ready hold is this member's reserved copy; otherwise there must be a free one.
-    const hadReadyHold = await fulfillReadyHold(tx, book.id, memberId);
-    if (!hadReadyHold) {
-      const counts = await countCopies(tx, book.id, book.totalCopies);
-      if (availableCopies(counts) === 0) {
-        throw new DomainError("No copies are free right now. Place a hold to join the queue.");
-      }
+    const holdId = await fulfillReadyHold(tx, book.id, memberId);
+    const counts = await countCopies(tx, book.id, book.totalCopies);
+    if (!canBorrowNow({ ...counts, memberHasReadyHold: holdId !== null })) {
+      throw new DomainError("No copies are free right now. Place a hold to join the queue.");
     }
 
     const borrowedAt = new Date();
@@ -70,7 +68,8 @@ export async function borrowBook(
       action: "loan.borrowed",
       entityType: "loan",
       entityId: loan.id,
-      metadata: { title: book.title, bookId: book.id, memberName: name, memberId, fromHold: hadReadyHold },
+      // holdId lets an Undo give the member their reserved copy back.
+      metadata: { title: book.title, bookId: book.id, memberName: name, memberId, fromHold: holdId !== null, holdId },
     });
 
     return { loanId: loan.id, bookId: book.id, title: book.title, dueAt: loan.dueAt };
@@ -171,7 +170,22 @@ export async function undoBorrow(actor: Actor, loanId: string): Promise<void> {
 
   const promoted = await db.transaction(async (tx) => {
     const book = await lockBook(tx, loan.bookId);
+    // If the borrow used the member's ready hold, put the hold back: the copy stays theirs.
+    const [borrowed] = await tx
+      .select({ metadata: activityLog.metadata })
+      .from(activityLog)
+      .where(
+        and(
+          eq(activityLog.action, "loan.borrowed"),
+          eq(activityLog.entityId, loanId),
+          gt(activityLog.createdAt, new Date(loan.borrowedAt.getTime() - 60_000)),
+        ),
+      );
+    const holdId = borrowed?.metadata.holdId;
     await tx.delete(loans).where(eq(loans.id, loanId));
+    if (typeof holdId === "string") {
+      await tx.update(holds).set({ status: "ready" }).where(and(eq(holds.id, holdId), eq(holds.status, "fulfilled")));
+    }
     await logActivity(tx, {
       actorId: actor.id,
       action: "loan.undone",

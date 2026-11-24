@@ -91,6 +91,8 @@ export const searchParamsSchema = z.object({
     .catch(undefined)
     .transform((value) => value === "1"),
   sort: z.enum(["relevance", "title", "newest", "popular"]).catch("relevance"),
+  /** How many results to show; "Show more" raises it a page at a time. */
+  show: z.coerce.number().int().min(1).max(1000).optional().catch(undefined),
 });
 
 export type CatalogQuery = z.output<typeof searchParamsSchema>;
