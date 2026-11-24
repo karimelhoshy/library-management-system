@@ -2,7 +2,7 @@
 
 A mini library management system with an AI librarian built in. Members search, borrow, return and reserve books, and librarians run the catalog. An AI agent can find, reserve and borrow books for you, but only once you confirm.
 
-<!-- VIDEO: replace this line with the github.com/user-attachments/assets/… URL of the walkthrough -->
+https://github.com/user-attachments/assets/aa0da3f6-06db-4a69-8073-71448628ae33
 
 **No sign-up needed.** The sign-in page has a one-click button for each role, so you can be a member, a librarian or an admin in one click. Google sign-in (SSO) is built in too and turns on with two environment variables. The live demo leaves it off so nobody has to sign in with a real account.
 **Live demo:** private for now; the link is in my submission email. Everything below also runs locally in five commands.
