@@ -20,9 +20,18 @@ export function isEmailEnabled(): boolean {
   return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 }
 
-/** Chat, tool-use and vision model. Override with GEMINI_MODEL. */
-export function geminiModel(): string {
-  return process.env.GEMINI_MODEL || "gemini-3.8-flash";
+/**
+ * Chat, tool-use and vision models, tried in this order when one is overloaded or slow.
+ * Override with GEMINI_MODEL (one model, or several separated by commas).
+ */
+export function geminiModels(): string[] {
+  const models = (process.env.GEMINI_MODEL ?? "").split(",").map((model) => model.trim()).filter(Boolean);
+  return models.length ? models : ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
+}
+
+/** How many AI requests the whole library may make per day. Override with AI_DAILY_BUDGET. */
+export function aiDailyBudget(): number {
+  return Number(process.env.AI_DAILY_BUDGET) || 300;
 }
 
 /** Embedding model. Override with GEMINI_EMBEDDING_MODEL. */

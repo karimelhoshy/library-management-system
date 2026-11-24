@@ -121,6 +121,19 @@ describe.skipIf(!url)("Ask the Librarian (integration, fake model)", () => {
     await expect(resolveProposal(user, "assistant-1-2", confirmed!.id, "confirm")).rejects.toThrow(/isn't available/);
   });
 
+  it("stops every AI request once the library's daily budget is used", async () => {
+    const { consumeAiQuota } = await import("@/server/ai/rate-limit");
+    await db.db.delete(schema.aiUsage);
+    process.env.AI_DAILY_BUDGET = "2";
+    try {
+      await consumeAiQuota("it-maya", "vibe");
+      await consumeAiQuota("it-other", "chat");
+      await expect(consumeAiQuota("it-maya", "chat")).rejects.toThrow(/allowance for today/);
+    } finally {
+      delete process.env.AI_DAILY_BUDGET;
+    }
+  });
+
   it("refuses to propose borrowing when no copy is free", async () => {
     const { runLibrarian } = await import("@/server/ai/agent");
     const user = { id: "it-other", name: "Other", email: "other@example.com", image: null, role: "member" as const, isDemo: false };

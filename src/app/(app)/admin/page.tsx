@@ -2,13 +2,16 @@ import { AlertTriangle, BellRing, BookCopy, Clock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ActivityFeed } from "@/components/admin/activity-feed";
+import { AiUsageCard } from "@/components/admin/ai-usage-card";
 import { toDeskLoans } from "@/components/admin/desk-loans";
 import { LoanDeskList } from "@/components/admin/loan-desk-list";
 import { LoansChart } from "@/components/admin/loans-chart";
 import { StatCard } from "@/components/admin/stat-card";
 import { BookCover } from "@/components/books/book-cover";
 import { PageHeader } from "@/components/shell/page-header";
+import { getAiUsage } from "@/server/ai/rate-limit";
 import { requirePermission } from "@/server/auth/session";
+import { geminiModels, isAiEnabled } from "@/server/env";
 import { listRecentActivity } from "@/server/services/activity";
 import { getDashboardStats, getLoansPerDay, getTopBorrowed } from "@/server/services/dashboard";
 import { listActiveLoans } from "@/server/services/loans";
@@ -29,12 +32,13 @@ function Card({ title, action, children }: { title: string; action?: React.React
 
 export default async function DashboardPage() {
   const user = await requirePermission("desk:read");
-  const [stats, perDay, top, overdue, activity] = await Promise.all([
+  const [stats, perDay, top, overdue, activity, aiUsage] = await Promise.all([
     getDashboardStats(user),
     getLoansPerDay(user, 30),
     getTopBorrowed(user, 5),
     listActiveLoans(user, { overdueOnly: true }),
     listRecentActivity(user, 10),
+    isAiEnabled() ? getAiUsage(user) : null,
   ]);
   const loans30 = perDay.reduce((sum, d) => sum + d.loans, 0);
 
@@ -117,6 +121,12 @@ export default async function DashboardPage() {
           <ActivityFeed items={activity} />
         </Card>
       </div>
+
+      {aiUsage && (
+        <div className="mt-6">
+          <AiUsageCard usage={aiUsage} models={geminiModels()} />
+        </div>
+      )}
     </div>
   );
 }

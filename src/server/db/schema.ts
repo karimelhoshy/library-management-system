@@ -241,7 +241,7 @@ export const aiUsage = pgTable(
     kind: text("kind").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("ai_usage_user_kind_idx").on(t.userId, t.kind, t.createdAt)],
+  (t) => [index("ai_usage_user_kind_idx").on(t.userId, t.kind, t.createdAt), index("ai_usage_created_idx").on(t.createdAt)],
 );
 
 /* ------------------------------------------------------------------ */

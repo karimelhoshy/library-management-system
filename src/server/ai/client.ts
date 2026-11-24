@@ -1,5 +1,5 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
-import { isAiEnabled } from "@/server/env";
+import { geminiModels, isAiEnabled } from "@/server/env";
 
 let client: GoogleGenAI | null = null;
 
@@ -15,6 +15,39 @@ export class AiUnavailableError extends Error {
     super(message);
     this.name = "AiUnavailableError";
   }
+}
+
+/** Overloaded, rate-limited or out of daily quota: another model may still answer. */
+function isRetryable(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 429 || error.status >= 500);
+}
+
+/**
+ * Runs a Gemini call on each model in turn until one answers. Free-tier models are sometimes
+ * overloaded or silent, and each has its own daily quota, so this keeps the AI features up when
+ * one model isn't. A model that hasn't answered within `timeoutMs` is abandoned: `call` must
+ * pass the signal to the SDK and resolve once the first output has arrived.
+ */
+export async function withModelFallback<T>(
+  call: (model: string, signal: AbortSignal) => Promise<T>,
+  { models = geminiModels(), timeoutMs = 20_000 }: { models?: string[]; timeoutMs?: number } = {},
+): Promise<{ value: T; model: string }> {
+  let lastError: unknown;
+  for (const model of models) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return { value: await call(model, controller.signal), model };
+    } catch (error) {
+      const timedOut = controller.signal.aborted;
+      if (!timedOut && !isRetryable(error)) throw error;
+      lastError = timedOut ? new ApiError({ message: `${model} didn't answer in time`, status: 504 }) : error;
+      console.warn(`[ai] ${model} unavailable (${timedOut ? "timeout" : (error as ApiError).status}), trying the next model`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
 }
 
 /** Turns Gemini errors into a message we can show people. */

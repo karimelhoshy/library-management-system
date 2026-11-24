@@ -1,5 +1,4 @@
-import { geminiModel } from "@/server/env";
-import { AiUnavailableError, getGenAI } from "./client";
+import { AiUnavailableError, getGenAI, withModelFallback } from "./client";
 
 export type DetectedBook = { title: string; author: string | null; confidence: number };
 
@@ -31,11 +30,15 @@ const SCHEMA = {
 export async function detectBooksInImage(base64: string, mimeType: string): Promise<DetectedBook[]> {
   const ai = getGenAI();
   if (!ai) throw new AiUnavailableError();
-  const response = await ai.models.generateContent({
-    model: geminiModel(),
-    contents: [{ role: "user", parts: [{ inlineData: { mimeType, data: base64 } }, { text: PROMPT }] }],
-    config: { responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.2 },
-  });
+  const { value: response } = await withModelFallback(
+    (model, signal) =>
+      ai.models.generateContent({
+        model,
+        contents: [{ role: "user", parts: [{ inlineData: { mimeType, data: base64 } }, { text: PROMPT }] }],
+        config: { responseMimeType: "application/json", responseJsonSchema: SCHEMA, temperature: 0.2, abortSignal: signal },
+      }),
+    { timeoutMs: 45_000 },
+  );
   const parsed = JSON.parse(response.text ?? "{}") as { books?: Partial<DetectedBook>[] };
   return (parsed.books ?? [])
     .filter((book): book is DetectedBook => typeof book.title === "string" && book.title.trim().length > 0)

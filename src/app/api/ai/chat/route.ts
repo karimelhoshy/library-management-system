@@ -8,7 +8,8 @@ import { getCurrentUser } from "@/server/auth/session";
 import { isAiEnabled } from "@/server/env";
 import { listThreadForApi, loadThread, saveMessage } from "@/server/services/chat";
 
-export const maxDuration = 60;
+// Room for a model fallback or two on top of a normal multi-step turn.
+export const maxDuration = 120;
 
 function json(body: unknown, status: number) {
   return Response.json(body, { status });

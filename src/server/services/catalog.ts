@@ -2,8 +2,11 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, lte, sql, type SQL } from 
 import { looksLikeIsbn, toIsbn13 } from "@/lib/isbn";
 import type { CatalogQuery } from "@/lib/validation";
 import { embedQuery, toVectorLiteral } from "@/server/ai/embed";
+import { consumeAiQuota } from "@/server/ai/rate-limit";
+import { DomainError } from "@/server/auth/permissions";
 import { db } from "@/server/db";
 import { books, holds, loans, type HoldStatus } from "@/server/db/schema";
+import { isAiEnabled } from "@/server/env";
 
 /** What a catalog card needs. Availability is computed in SQL, never stored. */
 export type BookCard = {
@@ -190,21 +193,22 @@ export async function vibeSearch(
   const q = query.q.trim();
   if (!q) return searchCatalog(query, viewerId);
 
-  let vector: number[] | null = null;
+  const keywordsInstead = async (notice: string): Promise<CatalogResult> => ({
+    ...(await searchCatalog(query, viewerId)),
+    notice,
+  });
+  if (!isAiEnabled()) return keywordsInstead("Vibe search needs an AI key. Showing keyword matches instead.");
+
+  let vector: number[] | null;
   try {
+    await consumeAiQuota(viewerId, "vibe");
     vector = await embedQuery(q);
   } catch (error) {
+    if (error instanceof DomainError) return keywordsInstead(`${error.message} Showing keyword matches instead.`);
     console.error("[vibeSearch] embedding failed", error);
-    const fallback = await searchCatalog(query, viewerId);
-    return { ...fallback, notice: "Vibe search is unavailable right now, so these are keyword matches." };
+    return keywordsInstead("Vibe search is unavailable right now, so these are keyword matches.");
   }
-  if (!vector) {
-    const fallback = await searchCatalog(query, viewerId);
-    return {
-      ...fallback,
-      notice: "Vibe search needs an AI key. Showing keyword matches instead.",
-    };
-  }
+  if (!vector) return keywordsInstead("Vibe search is unavailable right now, so these are keyword matches.");
 
   const distance = sql<number>`${books.embedding} <=> ${toVectorLiteral(vector)}::vector`;
   const rows = await db

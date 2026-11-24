@@ -8,10 +8,10 @@ import type { ChatStreamEvent, MiniBook } from "@/lib/chat-types";
 import { APP_NAME, HOLD_READY_DAYS, LOAN_DAYS } from "@/lib/config";
 import type { SessionUser } from "@/server/auth/session";
 import type { AiMessageContent, AiProposal } from "@/server/db/schema";
-import { geminiModel } from "@/server/env";
 import type { BookCard } from "@/server/services/catalog";
 import { toMiniBook } from "@/server/services/chat";
-import { AiUnavailableError, friendlyAiError, getGenAI } from "./client";
+import { geminiModels } from "@/server/env";
+import { AiUnavailableError, friendlyAiError, getGenAI, withModelFallback } from "./client";
 import { runTool, TOOL_DECLARATIONS, toolStatus, type ToolContext } from "./tools";
 
 const MAX_STEPS = 5;
@@ -67,19 +67,33 @@ function pickBooks(text: string, seen: Map<string, BookCard>, proposals: AiPropo
   return named.slice(0, 4);
 }
 
-async function* streamStep(contents: Content[], config: GenerateContentConfig) {
+/**
+ * Streams one model step. Tries the turn's models in order, then keeps using the one that
+ * answered, since its thought signatures are only valid for that model.
+ */
+async function* streamStep(contents: Content[], config: GenerateContentConfig, models: string[]) {
   const ai = getGenAI();
   if (!ai) throw new AiUnavailableError();
-  try {
-    return yield* await ai.models.generateContentStream({ model: geminiModel(), contents, config });
-  } catch (error) {
-    // Some models reject a thinking level; retry once with the model's default.
-    if (error instanceof ApiError && error.status === 400 && config.thinkingConfig) {
-      const { thinkingConfig: _ignored, ...rest } = config;
-      return yield* await ai.models.generateContentStream({ model: geminiModel(), contents, config: rest });
-    }
-    throw error;
-  }
+  const { value: stream, model } = await withModelFallback(
+    async (model, signal) => {
+      const open = (c: GenerateContentConfig) =>
+        ai.models.generateContentStream({ model, contents, config: { ...c, abortSignal: signal } });
+      let response;
+      try {
+        response = await open(config);
+      } catch (error) {
+        // Some models reject a thinking level; retry once with the model's default.
+        if (!(error instanceof ApiError && error.status === 400 && config.thinkingConfig)) throw error;
+        const { thinkingConfig: _ignored, ...rest } = config;
+        response = await open(rest);
+      }
+      const chunks = response[Symbol.asyncIterator]();
+      return { chunks, first: await chunks.next() };
+    },
+    { models },
+  );
+  models.splice(0, models.length, model);
+  for (let next = stream.first; !next.done; next = await stream.chunks.next()) yield next.value;
 }
 
 export type AgentResult = { content: AiMessageContent; books: MiniBook[] };
@@ -101,6 +115,7 @@ export async function* runLibrarian(
     thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
   };
 
+  const models = geminiModels();
   let text = "";
   let shownBooks: MiniBook[] = [];
   const emitBooks = (): ChatStreamEvent | null => {
@@ -114,7 +129,7 @@ export async function* runLibrarian(
     for (let step = 0; step < MAX_STEPS; step++) {
       const parts: Part[] = [];
       const calls: FunctionCall[] = [];
-      for await (const chunk of streamStep(contents, config)) {
+      for await (const chunk of streamStep(contents, config, models)) {
         for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
           // Keep every part (including thought signatures) to send back with tool results.
           parts.push(part);
