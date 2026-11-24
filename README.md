@@ -7,7 +7,7 @@ A mini library management system with an AI librarian built in. Members search, 
 https://github.com/user-attachments/assets/aa0da3f6-06db-4a69-8073-71448628ae33
 
 **No sign-up needed.** The sign-in page has a one-click button for each role, so you can be a member, a librarian or an admin in one click. Google sign-in (SSO) is built in too and turns on with two environment variables. The live demo leaves it off so nobody has to sign in with a real account.
-**Live demo:** private for now; the link is in my submission email. Everything below also runs locally in five commands.
+**Live demo:** shared privately, so ask me for the link. Everything below also runs locally in five commands.
 
 ![Catalog with search by vibe and the Ask the Librarian column](docs/screenshots/catalog.png)
 
@@ -149,4 +149,4 @@ To make yourself an admin on a fresh install, sign in once, then run `update use
 |---|---|
 | ![Librarian dashboard](docs/screenshots/dashboard.png) | ![Book page on a phone](docs/screenshots/mobile-book.png) |
 
-[MIT](LICENSE) · Built as a take-home challenge and published as open source.
+[MIT](LICENSE)
