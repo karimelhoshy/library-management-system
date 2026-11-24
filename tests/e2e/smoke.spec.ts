@@ -45,3 +45,27 @@ test("members can't open staff pages", async ({ page }) => {
   expect(response?.status()).toBe(403);
   await expect(page.getByText("This page is for library staff")).toBeVisible();
 });
+
+test("librarian can add, edit and delete a book", async ({ page }) => {
+  await page.goto("/sign-in");
+  await page.getByRole("button", { name: /Continue as Librarian/ }).click();
+  await expect(page.getByRole("heading", { name: "What are you reading next?" })).toBeVisible();
+
+  const title = `Smoke test ${Date.now()}`;
+  await page.goto("/admin/books/new");
+  await page.getByLabel("Title *").fill(title);
+  await page.getByLabel("Authors *").fill("Ada Example");
+  await page.getByRole("button", { name: "Add to catalog" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+
+  await page.getByRole("link", { name: "Edit details" }).click();
+  await page.getByLabel("Title *").fill(`${title}, revised`);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: `${title}, revised` })).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Delete book" }).click();
+  await expect(page.getByText(`Deleted “${title}, revised”`)).toBeVisible();
+  await page.getByLabel("Search the catalog").fill(title);
+  await expect(page.getByText("No books match that yet")).toBeVisible();
+});

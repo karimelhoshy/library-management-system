@@ -98,13 +98,13 @@ Set `DEMO_MODE=true` for the one-click demo accounts, and `GEMINI_API_KEY` (free
 
 ## How I know it works
 
-- **61 Vitest tests:** unit tests for the lending rules, the permission matrix and ISBN parsing, plus integration tests against a real Postgres:
+- **67 Vitest tests:** unit tests for the lending rules, the permission matrix and ISBN parsing, plus integration tests against a real Postgres:
   - Two people borrowing the last copy at the same moment: exactly one wins.
   - A return hands the copy to the first person in the hold queue.
   - Members can't act for other people.
   - A loan renews once, then refuses.
   - The AI agent runs end to end with a scripted fake Gemini, and a member confirms its card while the reply is still streaming.
-- **Playwright smoke tests:** a member searches "hobit", borrows *The Hobbit* and returns it; a member opening a staff page gets a 403.
+- **Playwright smoke tests:** a member searches "hobit", borrows *The Hobbit* and returns it; a librarian adds, edits and deletes a book; a member opening a staff page gets a 403.
 - **CI** runs lint, typecheck and the full Vitest suite against Postgres on every push.
 - **Not measured yet:** how often the agent picks the right tool. That needs an eval set (next steps).
 

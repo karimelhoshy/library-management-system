@@ -19,7 +19,7 @@ One line each: what we chose and why.
 - **Email outbox has `dedupe_key`** so the daily job never sends the same reminder twice; overdue reminders repeat weekly.
 - **`ai_usage` table** backs the per-user AI rate limit (works across serverless instances, unlike memory).
 - **Dates display in UTC** so server and client render identical text (no hydration mismatches).
-- **Chat model `gemini-3.8-flash`, embeddings `gemini-embedding-001` @ 768 dims, normalised.** Current free-tier models per Google's docs (Nov 2026); both overridable via env.
+- **Chat models `gemini-3.8-flash`, then 3.7 and 3.6 Flash as fallbacks; embeddings `gemini-embedding-001` @ 768 dims, normalised.** Current free-tier models per Google's docs (Nov 2026); both overridable via env.
 - **Covers use plain `<img>` with a coloured fallback**, not `next/image`, to avoid image-optimisation quotas and handle missing covers cleanly.
 - **Seed is deterministic** (seeded PRNG + hashed UUIDs), so `pnpm db:seed` is idempotent and every machine gets the same history.
 - **Seed swap:** *Murder in the Crooked House* has no cover on Open Library, so *The Moai Island Puzzle* (another translated Japanese locked-room mystery) stands in.
